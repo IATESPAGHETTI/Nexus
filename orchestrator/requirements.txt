@@ -1,0 +1,8 @@
+google-adk==2.9.1
+litellm==1.101.0
+python-dotenv==1.2.3
+a2a-sdk==1.1.4
+opentelemetry-api==1.42.1
+httpx==0.28.1
+pytest==9.1.1
+pytest-asyncio==1.4.0
