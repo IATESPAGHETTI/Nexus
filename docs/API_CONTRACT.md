@@ -26,6 +26,13 @@ POST /incidents/{id}/events     {"event_type", "source", "target"?, "status"?, "
                                  -> the created event (see docs/EVENT_SCHEMA.md envelope),
                                  also appended to the incident's timeline (404 if unknown)
 GET  /incidents/{id}/events     {"events": [...]} in emission order (404 if unknown)
+POST /incidents/{id}/approve    {"decision": "APPROVED"|"REJECTED", "approved_by": str}
+                                 -> full updated incident state (404 if unknown, 400 if
+                                 decision is not one of the two values). Persistence
+                                 only (backend/CLAUDE.md "no business logic here") --
+                                 records a real human decision made outside this
+                                 process; also appends a HUMAN_APPROVAL_GRANTED or
+                                 HUMAN_APPROVAL_REJECTED event. Implemented Phase 8.
 ```
 
 Incident state shape (root CLAUDE.md section 15):
@@ -41,13 +48,57 @@ Incident state shape (root CLAUDE.md section 15):
   "agent_messages": {"<agent_name>": {"task_id", "context_id"}},
   "hypotheses": [{"...Hypothesis..."}],
   "critic_results": [{"...Critique..."}],
-  "experiments": [], "recovery_plan": null, "approval_state": null,
-  "action_history": [], "token_usage": {},
-  "decision": {"outcome": "DIAGNOSED | ABSTAINED", "reason": "...", "loops_used": 1, "max_loops": 3}
+  "experiments": [],
+  "recovery_plan": {"plan_id", "hypothesis_id", "actions": [{"action", "params", "rationale"}],
+                     "risk_level": "LOW | MEDIUM | HIGH", "blast_radius", "rollback_plan",
+                     "status": "PROPOSED", "dropped_invalid_actions", "created_at"} | null,
+  "approval_state": {"decision": "PENDING | APPROVED | REJECTED | EXPIRED | NOT_REQUESTED",
+                      "approved_by"?, "decided_at"?, "requested_at"?} | null,
+  "action_history": [{"action", "params", "status": "EXECUTED | FAILED | SKIPPED_KILL_SWITCH",
+                       "detail", "timestamp"}],
+  "token_usage": {},
+  "decision": {"outcome": "DIAGNOSED | ABSTAINED | RESOLVED", "reason": "...", "loops_used": 1, "max_loops": 3}
 }
 ```
 
-`POST /incidents/{id}/approve` (human recovery approval) remains planned, Phase 8.
+Phase 8 (implemented): `POST /incidents/{id}/approve` above is the human
+approval gate. `recovery_plan`/`approval_state`/`action_history` are filled
+in for real by `orchestrator/recovery.py` (via `event_bridge.update_state`)
+once an incident reaches `DIAGNOSED` — see "Recovery flow" below.
+
+### Recovery flow — implemented (Phase 8)
+
+`orchestrator/recovery.py`'s `run_recovery(incident_id, hypothesis, critique,
+evidence_pool)`, called automatically by `orchestrator/investigation.py`
+right after a `DIAGNOSED` decision (unless `trigger_recovery=False`):
+
+```text
+1. Recovery Agent (real A2A, agents/recovery/) proposes a RecoveryPlan from
+   the hypothesis + critique + real evidence_pool (the same flattened MCP
+   evidence the critic saw -- the agent's only real source for a concrete
+   target_version). The Recovery Agent has NO MCP tools and NO execution
+   capability -- it can only emit a JSON proposal.
+2. guardrails/policy.py's validate_plan() independently re-validates every
+   action against guardrails/config.py's ALLOWED_ACTIONS (own authoritative
+   allowlist, never trusting the agent's own catalog) -- REJECTED stops here.
+3. approval_state -> PENDING, HUMAN_APPROVAL_REQUESTED emitted. Polls
+   backend/ for a real POST /incidents/{id}/approve, up to
+   MAX_APPROVAL_WAIT_SECONDS (env var, default 120) -- REJECTED or EXPIRED
+   stops here.
+4. guardrails/executor.py's execute_plan() runs each allowlisted action in
+   order via bounded HTTP calls to production/'s admin endpoints below,
+   re-checking a file-based kill switch (guardrails/kill_switch.py) before
+   EVERY action.
+5. Verification: a real second A2A call to the Metrics Agent; VERIFIED only
+   if the resulting error-rate evidence is below threshold -- never forced.
+6. RESOLVED only on verified success; every other branch leaves the incident
+   at DIAGNOSED with the failure reason recorded in the returned outcome.
+```
+
+The 4 allowlisted recovery actions (`guardrails/config.py`'s
+`ALLOWED_ACTIONS`): `restart_service` (no params), `rollback_deployment`
+(params: `target_version`), `reset_config` (no params), `scale_resources`
+(no params) -- each bound to exactly one `production/` admin endpoint below.
 
 ## Production (simulated) HTTP API — `production/`, separate service, port 8001
 
@@ -71,6 +122,32 @@ GET  /db/diagnostics        {"engine", "table_row_counts", "orders_by_status",
 GET  /orders                {"orders": [{id, customer, amount, status, created_at}]}
 GET  /orders/{id}           single order (404 if unknown)
 ```
+
+### Admin endpoints — implemented (Phase 8/9), mutating
+
+Unlike every endpoint above, these actually change `production/state.py`'s
+mutable fault state — genuinely degrading/restoring real request behavior,
+not a fabricated flag. Only `fault_injection/injector.py` and
+`guardrails/production_client.py` are expected to ever call these; no
+diagnostic/evidence/critic/recovery agent calls them directly.
+
+```text
+GET  /admin/state                                real current fault-state snapshot
+POST /admin/fault/inject   {"fault_type", "bad_version"?}   fault_injection/ only
+POST /admin/fault/clear                          fault_injection/ only (also test/demo reset)
+POST /admin/recovery/restart_service             guardrails/ only
+POST /admin/recovery/rollback_deployment {"target_version"} guardrails/ only
+POST /admin/recovery/reset_config                guardrails/ only
+POST /admin/recovery/scale_resources             guardrails/ only
+```
+
+`fault_type` is one of `production/state.py`'s `FAULT_TYPES`: `bad_deployment`,
+`db_slowdown`, `config_error`, `dependency_failure`, `resource_exhaustion` —
+the 5 minimum failure classes from `docs/EVALUATION.md`. Each produces a real,
+distinct, observable symptom through the existing read-only endpoints above
+(elevated error rate, elevated latency, or both) — see
+`fault_injection/scenarios.py`'s `expected_symptoms` for the exact signature
+of each.
 
 ## MCP diagnostic tools — `mcp/`, real MCP server (stdio transport)
 
@@ -115,9 +192,9 @@ source is this repo's own git history, not a production HTTP endpoint (see
 Planned (not yet implemented — add here when built, keep this file in sync):
 
 ```text
-POST /incidents/{id}/approve    human approval for a recovery plan (Phase 8)
 GET  /incidents/{id}/events     currently poll-only; SSE/websocket streaming for
-                                 the live dashboard is Phase 7
+                                 the live dashboard is a future phase
+GET  /incidents                 list endpoint, deliberately deferred (Phase 7 decision)
 ```
 
 ## A2A protocol — implemented (Phase 5)
@@ -136,18 +213,26 @@ agents/change_analysis/a2a_service.py  -> own process, http://127.0.0.1:8103
 agents/database/a2a_service.py         -> own process, http://127.0.0.1:8104
 agents/evidence/a2a_service.py         -> own process, http://127.0.0.1:8105 (Phase 6)
 agents/critic/a2a_service.py           -> own process, http://127.0.0.1:8106 (Phase 6)
+agents/recovery/a2a_service.py         -> own process, http://127.0.0.1:8107 (Phase 8)
 orchestrator/incident_manager.py       -> A2A client only (RemoteA2aAgent x4,
                                            diagnostic agents, Phase 5)
 orchestrator/investigation.py          -> A2A client only (RemoteA2aAgent to
                                            evidence_agent + root_cause_critic
                                            via remote_call.py, Phase 6)
+orchestrator/recovery.py               -> A2A client only (RemoteA2aAgent to
+                                           recovery_agent + metrics_agent
+                                           (post-recovery verification) via
+                                           remote_call.py, Phase 8)
 ```
 
-The Evidence Agent and Root-Cause Critic are served by the exact same
-`agents/common/a2a_server.py` (`DiagnosticAgentExecutor`/`build_a2a_app`) as the
-4 diagnostic agents — they carry no MCP tools (see `agents/common/reasoning_agent.py`),
-but are otherwise indistinguishable at the protocol level: real Agent Cards,
-real Task lifecycle, real JSON-RPC.
+The Evidence Agent, Root-Cause Critic, and Recovery Agent are served by the
+exact same `agents/common/a2a_server.py` (`DiagnosticAgentExecutor`/
+`build_a2a_app`) as the 4 diagnostic agents — they carry no MCP tools (see
+`agents/common/reasoning_agent.py`), but are otherwise indistinguishable at
+the protocol level: real Agent Cards, real Task lifecycle, real JSON-RPC. The
+Recovery Agent additionally has no execution capability of any kind —
+`agents/recovery/agent.py`'s `ACTION_CATALOG` only names actions in prompt
+text; nothing in `agents/` ever calls a mutating endpoint.
 
 Ports: `agents/common/ports.py`. Each service is `mcp/server.py`'s diagnostic
 agent (unchanged from Phase 4) wrapped by `to_a2a()`.

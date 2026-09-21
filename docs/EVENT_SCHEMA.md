@@ -47,34 +47,50 @@ EVIDENCE_REQUESTED
 RE_EVALUATION_STARTED
 DIAGNOSIS_REACHED
 ABSTENTION
-RECOVERY_PLAN_CREATED
-SAFETY_CHECK
-HUMAN_APPROVAL_REQUIRED
-HUMAN_APPROVED
-RECOVERY_STARTED
-RECOVERY_COMPLETED
-VERIFICATION_STARTED
-VERIFICATION_COMPLETED
+RECOVERY_PROPOSED
+SAFETY_VALIDATION
+HUMAN_APPROVAL_REQUESTED
+HUMAN_APPROVAL_GRANTED
+HUMAN_APPROVAL_REJECTED
+RECOVERY_EXECUTED
+RECOVERY_VERIFIED
 INCIDENT_RESOLVED
 ```
 
+Renamed from an earlier draft (`RECOVERY_PLAN_CREATED`, `SAFETY_CHECK`,
+`HUMAN_APPROVAL_REQUIRED`, `HUMAN_APPROVED`, `RECOVERY_STARTED`/
+`RECOVERY_COMPLETED`, `VERIFICATION_STARTED`/`VERIFICATION_COMPLETED`) to
+match root `CLAUDE.md` section 16's canonical names exactly, at Phase 8
+implementation time -- root `CLAUDE.md` is the non-negotiable master spec, so
+this file is the one that had to change. `HUMAN_APPROVAL_REJECTED` is an
+addition beyond section 16's list (a human explicitly rejecting a plan is a
+distinct, real outcome from an approval being granted) -- an intentional
+extension, not a repurposing of an existing type, per this file's own rule.
+`RECOVERY_EXECUTED`/`RECOVERY_VERIFIED` are each emitted once per recovery
+attempt (not split into STARTED/COMPLETED pairs) -- `guardrails/executor.py`'s
+`execute_plan()` and `orchestrator/recovery.py`'s `_verify_recovery()` are
+each a single bounded call, not a long-running process worth a start/finish
+pair of events.
+
 ## Status
 
-Implemented (Phase 6). Producer: `orchestrator/event_bridge.py` (real HTTP POST
-to `backend/`), called throughout `orchestrator/investigation.py`'s bounded
-re-evaluation loop. Consumer/store: `backend/app/incident_store.py` +
+Implemented (Phase 6 + Phase 8). Producer: `orchestrator/event_bridge.py` (real
+HTTP POST to `backend/`), called throughout `orchestrator/investigation.py`'s
+bounded re-evaluation loop and `orchestrator/recovery.py`'s bounded recovery
+flow. Consumer/store: `backend/app/incident_store.py` +
 `backend/app/main.py`'s `/incidents/{id}/events` endpoints. Event types
-actually emitted so far: `INCIDENT_CREATED`, `AGENT_STARTED`,
-`A2A_MESSAGE_SENT`, `MCP_TOOL_CALL`, `MCP_TOOL_RESULT`, `AGENT_COMPLETED`,
-`EVIDENCE_FOUND`, `HYPOTHESIS_CREATED`, `HYPOTHESIS_UPDATED`,
-`RE_EVALUATION_STARTED`, `CRITIC_CHALLENGE`, `EVIDENCE_REQUESTED`,
-`DIAGNOSIS_REACHED`, `ABSTENTION`, `INCIDENT_STATUS_CHANGED`. Not yet emitted:
-the recovery/approval/verification event types (`RECOVERY_*`, `SAFETY_CHECK`,
-`HUMAN_APPROVAL_*`, `VERIFICATION_*`, `INCIDENT_RESOLVED`) — no producer exists
-for them yet (Phase 8, recovery). `MCP_TOOL_CALL`/`MCP_TOOL_RESULT` are
-sourced from the real evidence already present in each diagnostic agent's
-Finding, not a direct read of `mcp/audit.py`'s in-process deque — see
+actually emitted: `INCIDENT_CREATED`, `AGENT_STARTED`, `A2A_MESSAGE_SENT`,
+`MCP_TOOL_CALL`, `MCP_TOOL_RESULT`, `AGENT_COMPLETED`, `EVIDENCE_FOUND`,
+`HYPOTHESIS_CREATED`, `HYPOTHESIS_UPDATED`, `RE_EVALUATION_STARTED`,
+`CRITIC_CHALLENGE`, `EVIDENCE_REQUESTED`, `DIAGNOSIS_REACHED`, `ABSTENTION`,
+`INCIDENT_STATUS_CHANGED`, `RECOVERY_PROPOSED`, `SAFETY_VALIDATION`,
+`HUMAN_APPROVAL_REQUESTED`, `HUMAN_APPROVAL_GRANTED`,
+`HUMAN_APPROVAL_REJECTED`, `RECOVERY_EXECUTED`, `RECOVERY_VERIFIED`,
+`INCIDENT_RESOLVED`. `MCP_TOOL_CALL`/`MCP_TOOL_RESULT` are sourced from the
+real evidence already present in each diagnostic agent's Finding, not a
+direct read of `mcp/audit.py`'s in-process deque — see
 `orchestrator/event_bridge.py`'s module docstring for why, and
 `docs/PROJECT_STATE.md`'s "Known limitations" for this documented as an
 explicit scope boundary, not an oversight. `dashboard/` has no consumer yet
-(Phase 7).
+for the Phase 8 event types (its Phase 7 `RecoveryPlaceholder` is still
+disabled/unwired — see `docs/PROJECT_STATE.md`).

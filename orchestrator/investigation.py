@@ -37,6 +37,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import event_bridge  # noqa: E402
+import recovery  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 
@@ -175,13 +176,29 @@ async def run_investigation(
     incident_description: str,
     agent_names: list[str] | None = None,
     max_loops: int | None = None,
+    trigger_recovery: bool = True,
+    skip_critic: bool = False,
+    incident_id: str | None = None,
 ) -> dict:
     """Runs the full Phase 6 investigation and returns the final persisted
-    incident state (fetched back from the backend, not an in-memory copy)."""
+    incident state (fetched back from the backend, not an in-memory copy).
+    `trigger_recovery=False` (Phase 9 evaluation baselines/ablation) stops
+    right after DIAGNOSED/ABSTAINED -- no Recovery Agent call, no guardrails
+    involvement at all. `skip_critic=True` (Phase 9 evaluation's "ablation
+    without the critic/falsification loop" arm, per docs/EVALUATION.md) makes
+    the leading hypothesis DIAGNOSED as soon as it exists, with ZERO real A2A
+    calls to root_cause_critic -- a genuine ablation of the falsification
+    loop, not a simulated one. `incident_id` (Phase 10 dashboard "Inject
+    Controlled Failure" trigger): if given, attaches this investigation to an
+    incident the caller already created via a real `POST /incidents` call
+    (e.g. `backend/app/main.py`'s `/demo/investigate`, so the dashboard can
+    redirect to the incident before the investigation itself finishes)
+    instead of creating a new one -- the incident must already exist in
+    `backend/`."""
     max_loops = MAX_REEVALUATION_LOOPS if max_loops is None else max_loops
     agent_names = agent_names or list(DIAGNOSTIC_AGENTS)
 
-    incident_id = event_bridge.create_incident(incident_description)
+    incident_id = incident_id or event_bridge.create_incident(incident_description)
     event_bridge.emit_event(
         incident_id, "INCIDENT_CREATED", source="incident_manager", payload={"description": incident_description}
     )
@@ -198,7 +215,28 @@ async def run_investigation(
     critic_results: list[dict] = []
     loops_used = 0
 
-    for loop_index in range(1, max_loops + 1):
+    if skip_critic:
+        leading = _leading_hypothesis(hypotheses)
+        loops_used = 1
+        if leading is None:
+            decision, reason = "ABSTAINED", "no open hypothesis left to evaluate (critic skipped -- ablation)"
+        else:
+            leading["status"] = "SUPPORTED"
+            event_bridge.emit_event(incident_id, "HYPOTHESIS_UPDATED", source=EVIDENCE_AGENT_NAME, payload=leading)
+            decision = "DIAGNOSED"
+            reason = f"hypothesis {leading['hypothesis_id']} accepted without critic review (ablation: skip_critic=True)"
+            synthetic_critique = {
+                "critique_id": None,
+                "hypothesis_id": leading["hypothesis_id"],
+                "verdict": "SUPPORTED",
+                "rationale": "critic skipped for this run (ablation study)",
+            }
+            critic_results.append(synthetic_critique)
+            event_bridge.emit_event(
+                incident_id, "DIAGNOSIS_REACHED", source="incident_manager", payload={"hypothesis": leading, "critique": synthetic_critique}
+            )
+
+    for loop_index in range(1, max_loops + 1) if not skip_critic else ():
         loops_used = loop_index
         leading = _leading_hypothesis(hypotheses)
         if leading is None:
@@ -286,5 +324,14 @@ async def run_investigation(
         decision={"outcome": decision, "reason": reason, "loops_used": loops_used, "max_loops": max_loops},
     )
     event_bridge.emit_event(incident_id, "INCIDENT_STATUS_CHANGED", source="incident_manager", payload={"status": decision})
+
+    if decision == "DIAGNOSED" and trigger_recovery:
+        # Phase 8: bounded recovery flow (propose -> validate -> human
+        # approval -> execute -> verify). Never runs for ABSTAINED -- there
+        # is nothing diagnosed to recover from. `leading`/critic_results[-1]
+        # are the exact hypothesis/critique that were just SUPPORTED above.
+        await recovery.run_recovery(
+            incident_id, leading, critic_results[-1] if critic_results else {}, evidence_pool=_flatten_evidence(findings_by_agent)
+        )
 
     return event_bridge.get_incident(incident_id)

@@ -132,7 +132,9 @@ async def test_supported_verdict_reaches_diagnosis_on_first_loop(fake_backend, m
 
     monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
 
-    result = await investigation.run_investigation("db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3)
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3, trigger_recovery=False
+    )
 
     assert result["status"] == "DIAGNOSED"
     assert result["decision"]["outcome"] == "DIAGNOSED"
@@ -205,3 +207,74 @@ async def test_loop_is_bounded_and_abstains_when_exhausted(fake_backend, monkeyp
     assert result["decision"]["loops_used"] == 2
     assert call_count["critic"] == 2  # never exceeds MAX_REEVALUATION_LOOPS
     assert "MAX_REEVALUATION_LOOPS" in result["decision"]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_diagnosed_incident_triggers_recovery_hook(fake_backend, monkeypatch):
+    """Phase 8 wiring check: a DIAGNOSED decision must call recovery.run_recovery
+    exactly once, with the leading hypothesis and the critique that supported
+    it -- and an ABSTAINED decision must never call it at all (see the
+    contradicted/abstain and max-loop tests above, which run with the default
+    trigger_recovery=True and never touch this monkeypatch, proving recovery
+    module is not on their path)."""
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch({"metrics_agent": FINDING_A, "database_agent": FINDING_B}))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        if agent_name == investigation.EVIDENCE_AGENT_NAME:
+            return {"response": {"hypotheses": [dict(HYPOTHESIS_1)]}, "task_id": "t1", "context_id": "c1"}
+        return {"response": {"verdict": "SUPPORTED", "hypothesis_id": "H1", "rationale": "backed by ev-b1"}, "task_id": "t2", "context_id": "c2"}
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    recovery_calls = []
+
+    async def fake_run_recovery(incident_id, hypothesis, critique, evidence_pool=None):
+        recovery_calls.append((incident_id, hypothesis["hypothesis_id"], critique["verdict"]))
+        return {"outcome": "RESOLVED"}
+
+    monkeypatch.setattr(investigation.recovery, "run_recovery", fake_run_recovery)
+
+    await investigation.run_investigation("db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3)
+
+    assert len(recovery_calls) == 1
+    assert recovery_calls[0][1] == "H1"
+    assert recovery_calls[0][2] == "SUPPORTED"
+
+
+@pytest.mark.asyncio
+async def test_skip_critic_ablation_diagnoses_without_ever_calling_critic(fake_backend, monkeypatch):
+    """docs/EVALUATION.md's arm 3 ("multi-agent system without critic/
+    falsification loop"): skip_critic=True must reach DIAGNOSED using the
+    evidence agent's top hypothesis alone, with ZERO calls to root_cause_critic."""
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch({"metrics_agent": FINDING_A, "database_agent": FINDING_B}))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        assert agent_name == investigation.EVIDENCE_AGENT_NAME, "critic must never be called when skip_critic=True"
+        return {"response": {"hypotheses": [dict(HYPOTHESIS_1), dict(HYPOTHESIS_2)]}, "task_id": "t1", "context_id": "c1"}
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], skip_critic=True, trigger_recovery=False
+    )
+
+    assert result["status"] == "DIAGNOSED"
+    assert result["decision"]["outcome"] == "DIAGNOSED"
+    assert "ablation" in result["decision"]["reason"]
+    assert result["critic_results"][0]["rationale"] == "critic skipped for this run (ablation study)"
+
+
+@pytest.mark.asyncio
+async def test_skip_critic_ablation_abstains_when_no_hypotheses(fake_backend, monkeypatch):
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch({"metrics_agent": FINDING_A}))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        return {"response": {"hypotheses": []}, "task_id": "t1", "context_id": "c1"}
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    result = await investigation.run_investigation(
+        "no evidence", agent_names=["metrics_agent"], skip_critic=True, trigger_recovery=False
+    )
+
+    assert result["status"] == "ABSTAINED"

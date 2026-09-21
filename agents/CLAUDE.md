@@ -3,8 +3,9 @@
 ## Purpose
 NEXUS agent implementations. Phase 4 built the 4 independent diagnostic agents.
 Phase 5 exposed each as a real, independent A2A service. Phase 6 added the
-Evidence Agent and Root-Cause Critic, same real-A2A-service pattern. `recovery/`
-is still unimplemented (Phase 7+).
+Evidence Agent and Root-Cause Critic, same real-A2A-service pattern. Phase 8
+added the Recovery Agent, same pattern again but with NO execution capability
+of any kind (see `recovery/agent.py` below and `guardrails/CLAUDE.md`).
 
 ## Owned
 - `common/` — shared infrastructure used by all 4 diagnostic agents:
@@ -60,6 +61,18 @@ is still unimplemented (Phase 7+).
   it's normalized to `INSUFFICIENT_EVIDENCE`, which keeps the orchestrator's
   re-evaluation loop asking for more evidence instead of silently treating a
   garbled reply as support or contradiction.
+- `recovery/agent.py` + `recovery/a2a_service.py` (Phase 8) — Recovery Agent
+  (port 8107). `ReasoningAgent`-based like Evidence/Critic (`tools=[]`) --
+  has NO MCP tools and NO way to call anything in `production/` itself.
+  `build_recovery_plan()` is the structural enforcement: any action not in
+  its own local `ACTION_CATALOG` is dropped, an out-of-enum `risk_level`
+  falls back to `MEDIUM`, and the action list is capped. This local catalog
+  is NOT the authoritative allowlist -- `guardrails/config.py`'s
+  `ALLOWED_ACTIONS` is, and `guardrails/policy.py` independently
+  re-validates every action from scratch before anything can be approved or
+  executed (see `guardrails/CLAUDE.md`). Verified live against a real Groq
+  call + real A2A round trip (see `docs/PROJECT_STATE.md` "Phase 8") before
+  the account's daily token quota was exhausted.
 
 Each `agent.py` exports `investigate(question: str = <default>) -> dict` (direct,
 in-process — Phase 4 path, still works unchanged). Each `a2a_service.py` starts
@@ -128,20 +141,23 @@ through `agents/common/remote_agent.py`'s `RemoteA2aAgent` (real network calls t
 a separately-running process) — never a direct import.
 
 ## Status
-Phase 4 + Phase 5 + Phase 6 (Evidence Agent, Root-Cause Critic): **implemented +
-tested**. `recovery/` not started (Phase 7+).
+Phase 4 + Phase 5 + Phase 6 (Evidence Agent, Root-Cause Critic) + Phase 8
+(Recovery Agent): **implemented + tested**.
 
 ## Test
 ```bash
 docker compose up -d production   # or: uvicorn service:app --port 8001 from production/
 .venv-agents/Scripts/python -m pytest agents/tests -q
 ```
-32 tests:
+33 tests:
 - `test_finding.py` — 8 fast unit tests, pure Python, no network.
 - `test_evidence_critic.py` (Phase 6) — 13 fast unit tests, pure Python, no
   network: `build_hypotheses`/`build_critique`'s structural enforcement
   (invented evidence_ids dropped, confidence clamped, invalid verdicts
   normalized) and `reasoning_agent.extract_json`'s tolerant JSON parsing.
+- `test_recovery.py` (Phase 8) — 6 fast unit tests, pure Python, no network:
+  `build_recovery_plan`'s structural enforcement (invented actions dropped,
+  invalid risk_level normalized, action list capped).
 - `test_agents_integration.py` — 5 real end-to-end tests (direct `investigate()`
   path, Phase 4): real Groq calls + real MCP protocol + real production HTTP.
 - `test_a2a.py` — 6 real A2A protocol tests (Phase 5, diagnostic agents only —

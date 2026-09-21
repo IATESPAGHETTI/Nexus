@@ -91,3 +91,48 @@ def test_state_update_merges_fields_without_clobbering_others():
 def test_state_update_on_unknown_incident_is_404():
     response = client.post("/incidents/INC-doesnotexist/state", json={"status": "DIAGNOSED"})
     assert response.status_code == 404
+
+
+def test_approve_recovery_plan_records_decision_and_emits_event():
+    incident_id = client.post("/incidents", json={"description": "bad deployment"}).json()["incident_id"]
+
+    response = client.post(
+        f"/incidents/{incident_id}/approve", json={"decision": "APPROVED", "approved_by": "deepu"}
+    )
+    assert response.status_code == 200
+    incident = response.json()
+    assert incident["approval_state"]["decision"] == "APPROVED"
+    assert incident["approval_state"]["approved_by"] == "deepu"
+    assert incident["approval_state"]["decided_at"]
+
+    events = client.get(f"/incidents/{incident_id}/events").json()["events"]
+    assert events[-1]["event_type"] == "HUMAN_APPROVAL_GRANTED"
+    assert events[-1]["status"] == "APPROVED"
+
+
+def test_reject_recovery_plan_emits_rejected_event():
+    incident_id = client.post("/incidents", json={"description": "bad deployment"}).json()["incident_id"]
+
+    response = client.post(
+        f"/incidents/{incident_id}/approve", json={"decision": "REJECTED", "approved_by": "deepu"}
+    )
+    assert response.status_code == 200
+    assert response.json()["approval_state"]["decision"] == "REJECTED"
+
+    events = client.get(f"/incidents/{incident_id}/events").json()["events"]
+    assert events[-1]["event_type"] == "HUMAN_APPROVAL_REJECTED"
+
+
+def test_approve_rejects_invalid_decision_value():
+    incident_id = client.post("/incidents", json={"description": "bad deployment"}).json()["incident_id"]
+    response = client.post(
+        f"/incidents/{incident_id}/approve", json={"decision": "MAYBE", "approved_by": "deepu"}
+    )
+    assert response.status_code == 400
+
+
+def test_approve_on_unknown_incident_is_404():
+    response = client.post(
+        "/incidents/INC-doesnotexist/approve", json={"decision": "APPROVED", "approved_by": "deepu"}
+    )
+    assert response.status_code == 404

@@ -17,7 +17,7 @@ on top of this. This module owns:
 
 from __future__ import annotations
 
-import os
+import sys
 from pathlib import Path
 
 import litellm
@@ -32,9 +32,11 @@ from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import mcp_server_connection_params
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 load_dotenv(REPO_ROOT / ".env")
 
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+from runtime_config import litellm_model_name, resolve_runtime_config  # noqa: E402
 
 # Groq's free-tier TPM limit (8000 tokens/min, shared across all agents) is
 # routinely tripped when the Incident Manager dispatches to multiple diagnostic
@@ -73,10 +75,12 @@ class DiagnosticAgent:
             connection_params=mcp_server_connection_params(),
             tool_filter=self.allowed_tools,
         )
+        provider, _ = resolve_runtime_config()
+        model_kwargs = {"include_reasoning": False} if provider == "groq" else {}
         return Agent(
             name=self.agent_name,
             description=self.description,
-            model=LiteLlm(model=f"groq/{GROQ_MODEL}", include_reasoning=False),
+            model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[toolset],
         )

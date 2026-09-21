@@ -58,12 +58,23 @@ Incident -> Incident Manager (orchestrator/)
   connection lives inside its own A2A service process, exactly as it did when
   invoked directly in Phase 4 — the A2A boundary sits *outside* the MCP boundary,
   never bypassing or replacing it.
-- **Events**: every major transition emits a structured event consumed by the backend
-  event store and streamed live to the dashboard. Not yet built (Phase 6).
+- **Events**: every major transition emits a structured event, persisted to the
+  backend event store (`backend/app/incident_store.py`) and read by the
+  dashboard via polling (Phase 6/7 — implemented; see `docs/EVENT_SCHEMA.md`
+  for the exact event types actually emitted).
 
 ## Status
 
-Phase 5 (A2A + Orchestration) implemented and tested. See `docs/PROJECT_STATE.md`
-for current state. Sections below this point describing `evidence/`, `critic/`,
-`recovery/`, `guardrails/`, `dashboard/`, `evaluation/` remain target architecture
-— not yet built.
+Phases 1-9 are implemented and tested (unit/deterministic level for every
+component; live-verified against the real running stack for A2A, MCP,
+guardrails/recovery execution, and fault injection — see
+`docs/PROJECT_STATE.md` for exactly what was verified live vs. unit-tested
+only). `evidence/` (Phase 6), `critic/` (Phase 6), `recovery/` (Phase 8),
+`guardrails/` (Phase 8), `dashboard/` (Phase 7), `evaluation/` +
+`fault_injection/` (Phase 9) are all real, not target architecture. The one
+concrete gap: Phase 9's official 3-arm live benchmark across all 5 fault
+scenarios has not been run to completion (external Groq daily quota, not a
+missing-code issue — see `docs/PROJECT_STATE.md` "Blockers"). See
+`NEXUS_PHASE10_PLAN.md` for the current Phase 10 integration/demo/packaging
+work and `docs/PROJECT_STATE.md` for the authoritative, continuously updated
+project state.

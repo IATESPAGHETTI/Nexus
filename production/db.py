@@ -10,7 +10,12 @@ from __future__ import annotations
 import sqlite3
 import time
 
+import state
 from observability import query_store
+
+# Phase 9 fault injection: real artificial latency added to every query while
+# state.db_slowdown is set -- not a fabricated metric, an actual slower query.
+DB_SLOWDOWN_SECONDS = 0.25
 
 _connection: sqlite3.Connection | None = None
 
@@ -60,6 +65,8 @@ def _init_schema(conn: sqlite3.Connection) -> None:
 def run_query(sql: str, params: tuple = ()) -> list[sqlite3.Row]:
     conn = get_connection()
     start = time.perf_counter()
+    if state.snapshot()["db_slowdown"]:
+        time.sleep(DB_SLOWDOWN_SECONDS)
     cursor = conn.execute(sql, params)
     rows = cursor.fetchall()
     duration_ms = (time.perf_counter() - start) * 1000

@@ -10,3 +10,16 @@ node_modules/
 dist/
 build/
 .DS_Store
+guardrails/.kill_switch
+evaluation/results/
+backend/.demo_logs/
+
+# local design reference (third-party saved site) and secrets
+reference_web/
+.env.*
+!.env.example
+
+# local-only: UI rollback snapshot and design reference archive
+dashboard/_backup_ui_v1/
+reference_web.zip
+.claude/settings.local.json

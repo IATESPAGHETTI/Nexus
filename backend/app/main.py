@@ -1,18 +1,80 @@
 from __future__ import annotations
 
+import time
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 
-from . import incident_store
+from . import demo, incident_store
 
 app = FastAPI(title="nexus-backend")
+
+# Dashboard dev server (Vite, port 5173) calls this backend directly for the
+# Phase 10 live-demo endpoints below via the browser's fetch, not just
+# through the /api dev proxy (see dashboard/vite.config.ts) -- CORS must
+# allow it. Read-only/local-dev scope: no credentials, no other origins.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "nexus-backend"}
+
+
+@app.get("/demo/status")
+def demo_status() -> dict:
+    """Real system-status check for the Mission Control home page -- every
+    field is a live HTTP probe result, never a hardcoded 'online'."""
+    return demo.system_status()
+
+
+class InjectFailureRequest(BaseModel):
+    fault_type: str = "bad_deployment"
+    description: str = "orders endpoint intermittently failing"
+
+
+@app.post("/demo/investigate")
+def demo_investigate(body: InjectFailureRequest) -> dict:
+    """The 'Inject Controlled Failure' button's one real action: injects a
+    real fault into production/, creates a real incident, and -- only if at
+    least one real A2A agent service is reachable -- launches the real
+    orchestrator investigation against that incident as a detached
+    subprocess (see backend/app/demo.py's module docstring for why a
+    subprocess, not an in-process call)."""
+    try:
+        demo.inject_fault(body.fault_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except demo.ProductionUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+    incident = incident_store.create_incident(body.description)
+    incident_id = incident["incident_id"]
+
+    status = demo.system_status()
+    investigation_triggered = False
+    note = "No A2A agent services are reachable -- start them per docs/DEMO_RUNBOOK.md to run a real investigation."
+    if status["agents_reachable_count"] > 0:
+        investigation_triggered = demo.spawn_investigation(incident_id, body.description)
+        note = (
+            "Real orchestrator investigation launched against this incident."
+            if investigation_triggered
+            else "Orchestrator venv (.venv-orchestrator/) not found -- fault injected and incident created, but the investigation could not be launched."
+        )
+
+    return {
+        "incident_id": incident_id,
+        "fault_type": body.fault_type,
+        "investigation_triggered": investigation_triggered,
+        "note": note,
+    }
 
 
 class IncidentCreate(BaseModel):
@@ -25,6 +87,16 @@ class EventCreate(BaseModel):
     target: str | None = None
     status: str | None = None
     payload: dict[str, Any] | None = None
+
+
+class ApprovalDecision(BaseModel):
+    """POST /incidents/{id}/approve body -- a human recording a real decision
+    on a proposed recovery plan (root CLAUDE.md section 20). Persistence only:
+    this endpoint does not decide anything, it records what a human already
+    decided outside this process (via the dashboard or a direct call)."""
+
+    decision: str  # "APPROVED" | "REJECTED"
+    approved_by: str
 
 
 class IncidentStateUpdate(BaseModel):
@@ -54,6 +126,36 @@ def update_incident_state(incident_id: str, body: IncidentStateUpdate) -> dict:
     incident = incident_store.update_incident(incident_id, body.model_dump(exclude_unset=True))
     if incident is None:
         raise HTTPException(status_code=404, detail="incident not found")
+    return incident
+
+
+@app.post("/incidents/{incident_id}/approve")
+def approve_recovery_plan(incident_id: str, body: ApprovalDecision) -> dict:
+    """Human approval gate for a proposed recovery plan (root CLAUDE.md
+    section 20). `orchestrator/recovery.py` never calls this itself -- it
+    only polls for the result. This must be called out-of-band, by a human
+    (via the dashboard once built, or directly) while an investigation's
+    recovery flow is waiting on `approval_state.decision == "PENDING"`."""
+    if body.decision not in ("APPROVED", "REJECTED"):
+        raise HTTPException(status_code=400, detail="decision must be 'APPROVED' or 'REJECTED'")
+    incident = incident_store.get_incident(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+
+    approval_state = {
+        "decision": body.decision,
+        "approved_by": body.approved_by,
+        "decided_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+    }
+    incident = incident_store.update_incident(incident_id, {"approval_state": approval_state})
+    incident_store.append_event(
+        incident_id,
+        "HUMAN_APPROVAL_GRANTED" if body.decision == "APPROVED" else "HUMAN_APPROVAL_REJECTED",
+        source="human",
+        target="orchestrator",
+        status=body.decision,
+        payload={"approved_by": body.approved_by},
+    )
     return incident
 
 

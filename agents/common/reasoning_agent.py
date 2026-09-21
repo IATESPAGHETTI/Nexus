@@ -13,8 +13,8 @@ observation the way an untooled chatbot could.
 from __future__ import annotations
 
 import json
-import os
 import re
+import sys
 from pathlib import Path
 
 import litellm
@@ -25,9 +25,11 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 load_dotenv(REPO_ROOT / ".env")
 
-GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+from runtime_config import litellm_model_name, resolve_runtime_config  # noqa: E402
 
 # Same real Groq free-tier TPM constraint as agents/common/diagnostic_agent.py.
 litellm.num_retries = 5
@@ -79,10 +81,12 @@ class ReasoningAgent:
         self.description = description
 
     def build_adk_agent(self) -> Agent:
+        provider, _ = resolve_runtime_config()
+        model_kwargs = {"include_reasoning": False} if provider == "groq" else {}
         return Agent(
             name=self.agent_name,
             description=self.description,
-            model=LiteLlm(model=f"groq/{GROQ_MODEL}", include_reasoning=False),
+            model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[],
         )

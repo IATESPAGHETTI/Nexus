@@ -17,7 +17,7 @@ dependency failure
 resource exhaustion
 ```
 
-## Comparison arms (Phase 11)
+## Comparison arms (Phase 9)
 
 ```text
 1. Single-agent baseline
@@ -37,10 +37,18 @@ abstention correctness
 diagnosis time
 remediation success
 tool cost
-token cost
+token cost (reported as `Unavailable from provider` unless Groq returns a
+provider value; no quota or token number is inferred)
 ```
 
 ## Status
 
-Not started (Phase 10/11 in the build order). `fault_injection/` scenarios and this
-pipeline depend on Phases 1-9 being functional first.
+Phase 9's fault scenarios, injector, three-arm benchmark runner, and pure
+scoring tests are implemented. The runner executes five controlled scenarios
+and writes the raw per-run records plus aggregates to `evaluation/results/`.
+
+The first complete live benchmark has not yet been recorded. It is blocked by
+the Groq account's exhausted daily token quota (TPD 200000), not substituted
+with synthetic output. When quota headroom is available, start the full stack
+and run `.venv-orchestrator/Scripts/python evaluation/run_experiment.py`.
+Report the generated JSON as the only source for measured evaluation values.

@@ -42,8 +42,14 @@ The spike PASSED — see `orchestrator/spike/SPIKE_RESULT.md`. Runtime model: GP
     `{"findings": {...}, "a2a": {...task_id/context_id per agent...},
     "agents_dispatched": [...], "agents_responded": [...]}`.
 - `investigation.py` — **implemented (Phase 6)**. `run_investigation(incident_description,
-  agent_names=None, max_loops=None) -> dict`: the full bounded re-evaluation
-  loop (root CLAUDE.md section 14). Creates a real incident in `backend/`,
+  agent_names=None, max_loops=None, trigger_recovery=True, skip_critic=False,
+  incident_id=None) -> dict`: the full bounded re-evaluation loop (root
+  CLAUDE.md section 14). `incident_id` (Phase 10, additive, default `None`
+  preserves all prior behavior): attaches to an incident the caller already
+  created via `POST /incidents` — used by `backend/app/demo.py`'s
+  "Inject Controlled Failure" trigger so the dashboard can redirect to the
+  incident immediately, before the investigation itself finishes — instead
+  of always creating a new one. Creates a real incident in `backend/`,
   dispatches to the diagnostic agents (via `incident_manager.investigate_incident`),
   calls the Evidence Agent over real A2A to get Hypotheses, then loops up to
   `MAX_REEVALUATION_LOOPS` (env var, default 3) calling the Root-Cause Critic
@@ -71,8 +77,25 @@ The spike PASSED — see `orchestrator/spike/SPIKE_RESULT.md`. Runtime model: GP
   agent and runs it directly through `InMemoryRunner` (same mechanism
   `agents/tests/test_a2a.py` proves works for a bare `RemoteA2aAgent`), parses
   the JSON response, and returns it with the real `task_id`/`context_id`.
-  Used for the Evidence Agent (port 8105) and Root-Cause Critic (port 8106) —
-  never a direct import of `agents/evidence/agent.py` or `agents/critic/agent.py`.
+  Used for the Evidence Agent (port 8105), Root-Cause Critic (port 8106), and
+  (Phase 8) the Recovery Agent (port 8107) + a post-recovery verification
+  call back to the Metrics Agent — never a direct import of any agent module.
+- `recovery.py` — **implemented (Phase 8)**. `run_recovery(incident_id,
+  hypothesis, critique, evidence_pool) -> dict`: the bounded recovery flow
+  (root CLAUDE.md section 20), called automatically by `investigation.py`
+  right after a `DIAGNOSED` decision (`trigger_recovery=True`, the default).
+  Recovery Agent (real A2A) proposes a RecoveryPlan -> `guardrails.policy.
+  validate_plan()` (independent, deterministic, no LLM) -> REJECTED stops;
+  else `approval_state=PENDING`, polls `backend/` for a real
+  `POST /incidents/{id}/approve` up to `MAX_APPROVAL_WAIT_SECONDS` ->
+  REJECTED/EXPIRED stops; else `guardrails.executor.execute_plan()` (bounded,
+  kill-switch-gated, real HTTP to `production/`'s admin endpoints) -> a real
+  second A2A call to the Metrics Agent verifies the fix -> `RESOLVED` only on
+  verified success. Every branch persists to `backend/` via `event_bridge.py`
+  and never forces a resolution it can't verify (same "abstain, never force
+  it" philosophy `investigation.py`'s re-evaluation loop already applies to
+  diagnosis, now applied to recovery). Imports `guardrails/` via `sys.path`
+  (no dedicated venv needed there — see `guardrails/CLAUDE.md`).
 
 ## Dependency isolation
 This folder has its OWN `requirements.txt` and must be installed into its OWN venv
@@ -123,24 +146,36 @@ reach them through `remote_agent.build_remote_agent()` /
 Phase 2.5 (ADK/Groq spike): **implemented + tested, PASS**. Phase 5 (A2A +
 Incident Manager parallel dispatch): **implemented + tested, PASS**. Phase 6
 (bounded evidence -> hypothesis -> critic re-evaluation loop, backend event
-bridge): **implemented + tested, PASS**.
+bridge): **implemented + tested, PASS**. Phase 8 (bounded recovery flow):
+**implemented + tested** (deterministic control-flow tests all pass; the
+Recovery Agent's real A2A call and `guardrails/`'s real execution against
+live `production/` were each verified live in this same session -- see
+`docs/PROJECT_STATE.md` "Phase 8" -- but a full live DIAGNOSED->RESOLVED run
+through `run_investigation` itself was blocked by the Groq account's daily
+token quota exhausting mid-session; flagged honestly, not claimed).
 
 ## Test
 ```bash
 .venv-orchestrator/Scripts/python orchestrator/spike/adk_groq_spike.py
 .venv-orchestrator/Scripts/python -m pytest orchestrator/tests -q
 ```
-8 tests: 1 spike regression (`test_adk_groq_spike.py`) + 2 real end-to-end
-Incident Manager tests (`test_incident_manager.py`, Phase 5, unchanged) + 4
+14 tests: 1 spike regression (`test_adk_groq_spike.py`) + 2 real end-to-end
+Incident Manager tests (`test_incident_manager.py`, Phase 5, unchanged) + 7
 deterministic orchestration-logic tests (`test_investigation_logic.py`, Phase
-6 — `run_investigation`'s control flow with the two real-A2A boundaries
+6/8 — `run_investigation`'s control flow with the two real-A2A boundaries
 monkeypatched: SUPPORTED-first-loop, CONTRADICTED-then-ABSTAIN, zero-hypotheses
-abstain, and max-loop-exhaustion abstain) + 1 real end-to-end investigation
+abstain, max-loop-exhaustion abstain, the DIAGNOSED->recovery hook wiring, and
+the `skip_critic` ablation's two paths) + 1 real end-to-end investigation
 test (`test_investigation_e2e.py`, Phase 6 — the full real chain: diagnostic
 findings via real A2A -> Evidence Agent via real A2A -> Hypotheses ->
 Root-Cause Critic via real A2A -> bounded decision, with every transition
 verified present in the real backend event store over a real second HTTP
-fetch).
+fetch) + 6 deterministic recovery-flow tests (`test_recovery_logic.py`, Phase
+8 — `run_recovery`'s control flow with its A2A/backend/guardrails-execution
+boundaries monkeypatched: safety-validation rejection, approval expiry,
+human rejection, full approved->executed->verified->RESOLVED path,
+execution-failure stop, and verification-failure stop -- none of these ever
+claim RESOLVED without a real, checked verification step).
 
 **Requires all 6 `agents/*/a2a_service.py` processes (4 diagnostic +
 `evidence/` + `critic/`) + `production/` + `backend/` running** (see

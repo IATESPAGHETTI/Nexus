@@ -14,6 +14,11 @@ A2A_PORTS = {
     # Phase 6: Evidence Agent + Root-Cause Critic, same real-A2A-service pattern.
     "evidence_agent": 8105,
     "root_cause_critic": 8106,
+    # Phase 8: Recovery Agent, same real-A2A-service pattern. Note: this agent
+    # has NO MCP tool access (ReasoningAgent-based, like Evidence/Critic) and
+    # NO execution capability of its own -- it only proposes a RecoveryPlan;
+    # guardrails/ is the only code path that ever executes anything.
+    "recovery_agent": 8107,
 }
 
 
