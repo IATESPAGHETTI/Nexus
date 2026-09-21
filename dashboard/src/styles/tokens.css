@@ -1,0 +1,146 @@
+/*
+  NEXUS design tokens — "editorial ops" theme.
+
+  Design language adapted from the reference in /reference_web (a warm
+  near-black neutral scale, a vermilion brand colour, a serif display face for
+  headings, mono uppercase eyebrow labels, generous radii and section spacing).
+  Only the visual language is borrowed: fonts here are open-licence stand-ins
+  (Fraunces / Inter / JetBrains Mono, self-hosted via @fontsource), and no
+  reference content, logos or assets are used.
+
+  Every --nx-* name from the previous theme is kept so components keep working;
+  the previous theme is preserved in dashboard/_backup_ui_v1/.
+*/
+
+:root {
+  /* Base palette — warm near-black neutrals */
+  --nx-stone: #1a1717;
+  --nx-cream: #0d0c0c;
+  --nx-graphite: #f2efee;
+  --nx-muted: #948e8c;
+
+  /* Surface scale */
+  --nx-surface-0: #0a0909; /* page background canvas */
+  --nx-surface-1: #100f0f; /* base panel surface */
+  --nx-surface-2: #171515; /* raised cards on panels */
+  --nx-surface-3: #211e1e; /* elevated floating popovers/modals */
+  --nx-surface-glass: rgba(18, 16, 16, 0.78);
+  --nx-surface-glass-strong: rgba(12, 11, 11, 0.9);
+  --nx-surface-glass-light: rgba(28, 25, 25, 0.6);
+
+  --nx-border-hairline: rgba(255, 255, 255, 0.09);
+  --nx-border-hairline-strong: rgba(255, 255, 255, 0.18);
+  --nx-glass-highlight: rgba(255, 255, 255, 0.06);
+
+  /* Brand (vermilion) + supporting accents, from the reference palette */
+  --nx-brand: #f34e3f;
+  --nx-brand-on-dark: #ff7867;
+  --nx-brand-bg: rgba(243, 78, 63, 0.12);
+  --nx-brand-border: rgba(243, 78, 63, 0.32);
+  --nx-blue: #8a9aff;
+  --nx-teal: #4db8da;
+  --nx-violet: #be8cff;
+
+  /* Soft glows (kept very restrained) */
+  --nx-glow-indigo: rgba(243, 78, 63, 0.22);
+  --nx-glow-cyan: rgba(77, 184, 218, 0.18);
+  --nx-glow-red: rgba(229, 72, 77, 0.25);
+  --nx-glow-emerald: rgba(111, 207, 151, 0.22);
+
+  /* Text scale */
+  --nx-ink-1: #f2efee; /* primary */
+  --nx-ink-2: #cdc8c6; /* secondary */
+  --nx-ink-3: #9a9492; /* tertiary / captions */
+  --nx-ink-4: #6f6a68; /* disabled / faint */
+
+  /* Semantic tones — state only */
+  --nx-green: #6fcf97;
+  --nx-green-bg: rgba(111, 207, 151, 0.13);
+  --nx-green-border: rgba(111, 207, 151, 0.3);
+
+  --nx-amber: #e9a64e;
+  --nx-amber-bg: rgba(233, 166, 78, 0.14);
+  --nx-amber-border: rgba(233, 166, 78, 0.34);
+
+  --nx-red: #f0656a;
+  --nx-red-bg: rgba(229, 72, 77, 0.16);
+  --nx-red-border: rgba(229, 72, 77, 0.38);
+
+  /* "indigo" is now the brand/in-progress accent (name kept for compatibility) */
+  --nx-indigo: #ff7867;
+  --nx-indigo-bg: rgba(255, 120, 103, 0.14);
+  --nx-indigo-border: rgba(255, 120, 103, 0.36);
+
+  --nx-neutral-bg: rgba(255, 255, 255, 0.05);
+
+  /* Shadows — flatter than before; depth comes from borders, not glow */
+  --nx-shadow-hairline: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --nx-shadow-panel: 0 1px 0 var(--nx-glass-highlight) inset, 0 12px 32px rgba(0, 0, 0, 0.38);
+  --nx-shadow-raised: 0 1px 0 var(--nx-glass-highlight) inset, 0 20px 50px rgba(0, 0, 0, 0.5);
+  --nx-shadow-glow-indigo: 0 0 28px rgba(243, 78, 63, 0.18);
+  --nx-shadow-glow-red: 0 0 28px rgba(229, 72, 77, 0.2);
+
+  /* Surface material */
+  --nx-glass-blur: 14px;
+  --nx-glass-blur-light: 10px;
+  --nx-glass-saturate: 110%;
+
+  /* Typography */
+  --nx-font-ui: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --nx-font-display: "Inter Variable", "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --nx-font-mono: "JetBrains Mono Variable", "JetBrains Mono", "SF Mono", Consolas, monospace;
+
+  /* Spacing — 8px base grid */
+  --nx-space-1: 4px;
+  --nx-space-2: 8px;
+  --nx-space-3: 12px;
+  --nx-space-4: 16px;
+  --nx-space-5: 24px;
+  --nx-space-6: 32px;
+  --nx-space-7: 48px;
+  --nx-space-8: 64px;
+
+  /* Radii — reference uses 0.5 / 1 / 2 rem */
+  --nx-radius-sm: 8px;
+  --nx-radius-md: 16px;
+  --nx-radius-lg: 24px;
+  --nx-radius-xl: 32px;
+  --nx-radius-full: 999px;
+
+  /* Layout */
+  --nx-container: 72rem;
+  --nx-section-y: 6rem;
+
+  /* Motion */
+  --nx-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --nx-duration-fast: 150ms;
+  --nx-duration-standard: 240ms;
+  --nx-duration-slow: 400ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --nx-duration-fast: 0ms;
+    --nx-duration-standard: 0ms;
+    --nx-duration-slow: 0ms;
+  }
+}
+
+/* Light "marketing" surface (story pages). Product frames stay on the dark
+   --nx-* tokens above, like the dark screenshots inside the reference's light page. */
+:root {
+  --lt-bg: #ffffff;
+  --lt-bg-alt: #f7f7f7;
+  --lt-border: #e8e8e8;
+  --lt-border-strong: #d4d4d4;
+  --lt-ink: #111111;
+  --lt-ink-2: #444444;
+  --lt-ink-3: #777777;
+  --lt-ink-4: #a6a6a6;
+  --lt-brand: #f34e3f;
+  --lt-radius-lg: 2rem;
+  --lt-radius-md: 1rem;
+  --lt-container: 72rem;
+  --lt-pad-x: 3rem;
+  --lt-section-y: 6rem;
+}

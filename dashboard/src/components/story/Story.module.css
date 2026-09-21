@@ -1,0 +1,326 @@
+.page {
+  background: var(--lt-bg);
+  color: var(--lt-ink);
+  font-family: var(--nx-font-ui);
+  overflow-x: clip;
+}
+
+.container {
+  width: 100%;
+  max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
+  margin: 0 auto;
+  padding: 0 var(--lt-pad-x);
+}
+
+/* ---- section marker: label + hairline ---------------------------------- */
+.marker {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 3rem;
+}
+.markerLabel {
+  font-family: var(--nx-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 400;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lt-ink-3);
+  white-space: nowrap;
+}
+.markerLabel::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  margin-right: 0.6rem;
+  border-radius: 50%;
+  background: var(--lt-brand);
+  vertical-align: 1px;
+}
+.markerLine {
+  flex: 1;
+  height: 1px;
+  background: var(--lt-border);
+  transform-origin: left;
+}
+.markerDark .markerLabel { color: var(--nx-ink-3); }
+.markerDark .markerLine { background: var(--nx-border-hairline); }
+
+/* ---- marquee ------------------------------------------------------------- */
+.marqueeSection {
+  padding: 3.5rem 0;
+  border-top: 1px solid var(--lt-border);
+  border-bottom: 1px solid var(--lt-border);
+  background: var(--lt-bg);
+}
+.marqueeHeading {
+  text-align: center;
+  font-family: var(--nx-font-mono);
+  font-size: 0.8125rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lt-ink-3);
+  margin-bottom: 2rem;
+}
+.marqueeWrap {
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+.marqueeTrack {
+  display: flex;
+  align-items: center;
+  gap: 3.5rem;
+  width: max-content;
+  padding-right: 3.5rem;
+  animation: marquee 60s linear infinite;
+}
+.marqueeItem {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--lt-ink);
+  white-space: nowrap;
+}
+.marqueeItem small {
+  font-family: var(--nx-font-mono);
+  font-size: 0.75rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: var(--lt-ink-3);
+}
+@keyframes marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* ---- problem -------------------------------------------------------------- */
+.problem {
+  padding: var(--lt-section-y) 0;
+}
+.problemGrid {
+  display: grid;
+  grid-template-columns: 1.15fr 1fr;
+  gap: 4rem;
+  align-items: center;
+}
+.problemHeadline {
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--lt-ink);
+}
+.problemSecondary {
+  display: block;
+  margin-top: 0.9rem;
+  font-weight: 300;
+  color: var(--lt-ink-3);
+}
+.signals {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-lg);
+  background:
+    radial-gradient(circle, rgba(0, 0, 0, 0.09) 1px, transparent 1px) 0 0 / 10px 10px,
+    var(--lt-bg-alt);
+  overflow: hidden;
+}
+.signal {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  padding: 1.15rem 1.6rem;
+  border-bottom: 1px solid var(--lt-border);
+  font-size: 1.15rem;
+  letter-spacing: -0.02em;
+}
+.signal:last-child { border-bottom: none; }
+.signalN {
+  font-family: var(--nx-font-mono);
+  font-size: 0.75rem;
+  color: var(--lt-brand);
+}
+.signalHint {
+  margin-left: auto;
+  font-family: var(--nx-font-mono);
+  font-size: 0.75rem;
+  color: var(--lt-ink-3);
+}
+
+/* ---- statement: words fill as you scroll -------------------------------- */
+.statementSection { padding: 0 0 var(--lt-section-y); }
+.statementCard {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 5rem 3.5rem;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-lg);
+  overflow: hidden;
+  background:
+    radial-gradient(circle, rgba(0, 0, 0, 0.11) 1px, transparent 1px) 0 0 / 8px 8px,
+    var(--lt-bg);
+}
+.statementText {
+  max-width: 62rem;
+  text-align: center;
+  font-size: clamp(1.5rem, 3.4vw, 2.5rem);
+  font-weight: 500;
+  line-height: 1.22;
+  letter-spacing: -0.03em;
+}
+.word {
+  color: var(--lt-border-strong);
+  transition: color 0.15s ease;
+}
+.wordFilled { color: var(--lt-ink); }
+
+/* ---- steps rail ------------------------------------------------------------- */
+.steps { padding: var(--lt-section-y) 0; border-top: 1px solid var(--lt-border); }
+.stepsTitle {
+  max-width: 44rem;
+  margin-bottom: 3.5rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+.stepsTitle span { color: var(--lt-ink-3); font-weight: 300; }
+.stepsGrid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  border-top: 1px solid var(--lt-border-strong);
+}
+.step {
+  position: relative;
+  padding: 1.6rem 1.25rem 0 0;
+}
+.stepN {
+  font-family: var(--nx-font-mono);
+  font-size: 0.75rem;
+  color: var(--lt-ink-3);
+}
+.stepName {
+  margin: 0.5rem 0 0.7rem;
+  font-size: 1.5rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+}
+.stepText {
+  font-size: 0.95rem;
+  line-height: 1.5;
+  color: var(--lt-ink-2);
+}
+
+/* ---- closing CTA + footer ------------------------------------------------- */
+.cta {
+  padding: 7rem 0;
+  text-align: center;
+  border-top: 1px solid var(--lt-border);
+  background:
+    radial-gradient(ellipse 60% 70% at 50% 100%, rgba(243, 78, 63, 0.09), transparent 70%),
+    var(--lt-bg);
+}
+.ctaTitle {
+  max-width: 46rem;
+  margin: 0 auto 1rem;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.031em;
+}
+.ctaSub {
+  max-width: 34rem;
+  margin: 0 auto 2rem;
+  font-size: 1.15rem;
+  color: var(--lt-ink-2);
+}
+.ctaBtn {
+  padding: 0.85rem 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--lt-ink);
+  color: #fff;
+  font-size: 1rem;
+  font-weight: 500;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+.ctaBtn:hover { background: var(--lt-brand); transform: translateY(-1px); }
+.footer {
+  padding: 2rem 0 3rem;
+  border-top: 1px solid var(--lt-border);
+  font-family: var(--nx-font-mono);
+  font-size: 0.75rem;
+  color: var(--lt-ink-3);
+  text-align: center;
+  line-height: 1.8;
+}
+
+/* ---- floating pillars nav (appears after the hero) -------------------------- */
+.pillars {
+  position: fixed;
+  bottom: 2rem;
+  left: 50%;
+  z-index: 90;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: #f8f8f8;
+  border: 1px solid #d9d9d9;
+  border-radius: 999px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.06);
+  opacity: 0;
+  transform: translate(-50%, 20px);
+  pointer-events: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+.pillarsVisible {
+  opacity: 1;
+  transform: translate(-50%, 0);
+  pointer-events: auto;
+}
+.pillar {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 1rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  font-size: 0.95rem;
+  color: #555;
+  white-space: nowrap;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+.pillar:hover { color: #161616; background: #ebebeb; }
+.pillarDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #999;
+  opacity: 0.4;
+  transition: opacity 0.2s ease, background 0.2s ease;
+}
+.pillarActive { color: #161616; }
+.pillarActive .pillarDot { background: var(--lt-brand); opacity: 1; }
+
+@media (max-width: 960px) {
+  :root { --lt-pad-x: 1.5rem; --lt-section-y: 4rem; }
+  .problemGrid { grid-template-columns: 1fr; gap: 2.5rem; }
+  .stepsGrid { grid-template-columns: repeat(2, 1fr); row-gap: 2rem; }
+  .statementCard { padding: 2.5rem 1.5rem; }
+  .pillars { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .marqueeTrack { animation: none; }
+}

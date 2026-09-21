@@ -1,0 +1,29 @@
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--nx-space-1);
+  padding: 2px var(--nx-space-2);
+  border-radius: var(--nx-radius-sm);
+  font-size: 11px;
+  font-weight: 590;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.neutral {
+  background: var(--nx-neutral-bg);
+  color: var(--nx-ink-2);
+}
+.green {
+  background: var(--nx-green-bg);
+  color: var(--nx-green);
+}
+.amber {
+  background: var(--nx-amber-bg);
+  color: var(--nx-amber);
+}
+.red {
+  background: var(--nx-red-bg);
+  color: var(--nx-red);
+}

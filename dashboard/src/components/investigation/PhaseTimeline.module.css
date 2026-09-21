@@ -1,0 +1,59 @@
+.row {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-space-2);
+}
+
+.node {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-space-2);
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nx-border-hairline-strong);
+  transition: background-color var(--nx-duration-standard) var(--nx-ease-standard);
+}
+
+.dot.reached {
+  background: var(--nx-ink-1);
+}
+
+.dot.current {
+  background: var(--nx-amber);
+}
+
+.label {
+  font-size: 11px;
+  font-weight: 590;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--nx-ink-4);
+  transition: color var(--nx-duration-standard) var(--nx-ease-standard);
+  white-space: nowrap;
+}
+
+.label.reached {
+  color: var(--nx-ink-2);
+}
+
+.label.current {
+  color: var(--nx-ink-1);
+}
+
+.connector {
+  position: relative;
+  width: 28px;
+  height: 1px;
+  background: var(--nx-border-hairline-strong);
+  overflow: hidden;
+}
+
+.connectorFill {
+  position: absolute;
+  inset: 0;
+  background: var(--nx-ink-2);
+}

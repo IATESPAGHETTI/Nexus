@@ -1,0 +1,54 @@
+.band {
+  position: relative;
+  background: var(--nx-surface-0);
+  color: var(--nx-ink-1);
+  border-top-left-radius: var(--lt-radius-lg);
+  border-top-right-radius: var(--lt-radius-lg);
+}
+.inner {
+  width: 100%;
+  max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
+  margin: 0 auto;
+  padding: var(--lt-section-y) var(--lt-pad-x) 3rem;
+}
+.title {
+  max-width: 44rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--nx-ink-1);
+}
+.sub {
+  max-width: 40rem;
+  margin: 1rem 0 2.25rem;
+  font-size: 1.1rem;
+  line-height: 1.5;
+  color: var(--nx-ink-3);
+}
+.switchRow {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 2rem;
+}
+.legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  font-size: 0.92rem;
+  color: var(--nx-ink-3);
+}
+.legend li { display: flex; align-items: baseline; gap: 0.6rem; }
+.legend b { color: var(--nx-ink-1); font-weight: 500; }
+.legend i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; flex: none; }
+.dOff { background: #6f6a68; }
+.dOn { background: var(--nx-green); }
+.dWarn { background: var(--nx-amber); }
+
+@media (max-width: 960px) {
+  .inner { padding-left: 1.5rem; padding-right: 1.5rem; }
+}

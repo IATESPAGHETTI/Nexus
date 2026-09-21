@@ -1,0 +1,51 @@
+.surface {
+  position: relative;
+  background: var(--nx-surface-glass);
+  backdrop-filter: blur(var(--nx-glass-blur)) saturate(var(--nx-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--nx-glass-blur)) saturate(var(--nx-glass-saturate));
+  border: 1px solid var(--nx-border-hairline);
+  border-radius: var(--nx-radius-lg);
+  /* The top-edge "light passing through frosted glass" highlight lives
+     inside --nx-shadow-panel/--nx-shadow-raised (tokens.css) as an inset
+     layer, applied below by .panel/.raised — cheaper than the masked
+     gradient-border pseudo-element this used previously, which was
+     expensive enough to repaint on a page full of these surfaces that it
+     caused real scroll-compositing corruption (reproduced: page content
+     collapsing into a small corner box while scrolling). */
+  transition:
+    box-shadow var(--nx-duration-standard) var(--nx-ease-standard),
+    border-color var(--nx-duration-standard) var(--nx-ease-standard),
+    transform var(--nx-duration-standard) var(--nx-ease-standard);
+}
+
+.surface.strong {
+  background: var(--nx-surface-glass-strong);
+}
+
+.surface.light {
+  background: var(--nx-surface-glass-light);
+  backdrop-filter: blur(var(--nx-glass-blur-light)) saturate(var(--nx-glass-saturate));
+  -webkit-backdrop-filter: blur(var(--nx-glass-blur-light)) saturate(var(--nx-glass-saturate));
+}
+
+.panel {
+  box-shadow: var(--nx-shadow-panel);
+}
+
+.raised {
+  box-shadow: var(--nx-shadow-raised);
+  border-color: var(--nx-border-hairline-strong);
+}
+
+/* Opt-in hover material response for surfaces that wrap an interactive
+   element (a Link/button) — a slight lift and shadow increase, never a
+   glow or color shift. */
+.interactive {
+  cursor: pointer;
+}
+
+.interactive:hover {
+  border-color: var(--nx-border-hairline-strong);
+  box-shadow: var(--nx-shadow-raised);
+  transform: translateY(-1px);
+}

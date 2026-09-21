@@ -1,0 +1,65 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "nexus-dashboard",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "dashboard", "run", "dev"],
+      "port": 5173
+    },
+    {
+      "name": "nexus-production",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "service:app", "--app-dir", "production", "--port", "8001"],
+      "port": 8001
+    },
+    {
+      "name": "nexus-backend",
+      "runtimeExecutable": ".venv/Scripts/python.exe",
+      "runtimeArgs": ["-m", "uvicorn", "app.main:app", "--app-dir", "backend", "--port", "8000"],
+      "port": 8000
+    },
+    {
+      "name": "nexus-agent-metrics",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/metrics/a2a_service.py"],
+      "port": 8101
+    },
+    {
+      "name": "nexus-agent-logs-traces",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/logs_traces/a2a_service.py"],
+      "port": 8102
+    },
+    {
+      "name": "nexus-agent-change-analysis",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/change_analysis/a2a_service.py"],
+      "port": 8103
+    },
+    {
+      "name": "nexus-agent-database",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/database/a2a_service.py"],
+      "port": 8104
+    },
+    {
+      "name": "nexus-agent-evidence",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/evidence/a2a_service.py"],
+      "port": 8105
+    },
+    {
+      "name": "nexus-agent-critic",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/critic/a2a_service.py"],
+      "port": 8106
+    },
+    {
+      "name": "nexus-agent-recovery",
+      "runtimeExecutable": ".venv-agents/Scripts/python.exe",
+      "runtimeArgs": ["agents/recovery/a2a_service.py"],
+      "port": 8107
+    }
+  ]
+}

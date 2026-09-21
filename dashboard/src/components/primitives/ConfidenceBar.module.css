@@ -1,0 +1,48 @@
+.wrap {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-space-2);
+}
+
+.track {
+  position: relative;
+  flex: 1;
+  height: 4px;
+  border-radius: var(--nx-radius-full);
+  background: var(--nx-neutral-bg);
+  overflow: hidden;
+}
+
+.compact .track {
+  height: 3px;
+}
+
+.fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: var(--nx-radius-full);
+  background: var(--nx-ink-3);
+}
+
+.fill.green {
+  background: var(--nx-green);
+}
+.fill.amber {
+  background: var(--nx-amber);
+}
+.fill.red {
+  background: var(--nx-red);
+}
+
+.value {
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+  color: var(--nx-ink-2);
+  min-width: 34px;
+  text-align: right;
+}
+
+.compact .value {
+  font-size: 11px;
+  min-width: 28px;
+}

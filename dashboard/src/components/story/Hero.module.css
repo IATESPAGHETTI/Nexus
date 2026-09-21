@@ -1,0 +1,363 @@
+.wrap {
+  position: relative;
+  height: 230vh;
+  background: var(--lt-bg);
+  color: var(--lt-ink);
+}
+.wrap.noMotion {
+  height: auto;
+}
+
+.sticky {
+  --copy-zone-height: 18.5rem;
+  --grow-progress: 0;
+  --intro-progress: 0;
+  position: sticky;
+  top: 6.25rem;
+  height: calc(100vh - 6.25rem);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 1rem 1.5rem 2rem;
+  isolation: isolate;
+}
+.noMotion .sticky {
+  --grow-progress: 1;
+  position: static;
+  height: auto;
+  overflow: visible;
+  padding: 4.5rem 1.25rem 3rem;
+  gap: 2.5rem;
+}
+
+/* receding perspective floor, like the reference's hero grid */
+.perspective {
+  position: absolute;
+  left: -50%;
+  right: -50%;
+  bottom: -12%;
+  height: 62%;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(var(--lt-border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--lt-border) 1px, transparent 1px);
+  background-size: 72px 72px;
+  transform: perspective(520px) rotateX(62deg);
+  transform-origin: center bottom;
+  -webkit-mask-image: linear-gradient(to top, #000 15%, transparent 92%);
+  mask-image: linear-gradient(to top, #000 15%, transparent 92%);
+}
+
+.copyZone {
+  position: relative;
+  z-index: 2;
+  width: 100%;
+  height: var(--copy-zone-height);
+  flex: none;
+}
+.noMotion .copyZone {
+  height: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+}
+
+.heroCopy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1.1rem;
+  opacity: max(0, calc(1 - var(--grow-progress) * 2.4));
+  transform: translateY(calc(var(--grow-progress) * -26px));
+}
+.noMotion .heroCopy {
+  position: relative;
+  opacity: 1;
+  transform: none;
+}
+
+.title {
+  max-width: 56rem;
+  font-family: var(--nx-font-ui);
+  font-size: clamp(2.25rem, 6vw, 4rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.031em;
+  color: var(--lt-ink);
+  text-wrap: balance;
+}
+.word {
+  display: inline-block;
+  margin-right: 0.24em;
+}
+.ready .word {
+  opacity: 0;
+  transform: translateY(40px) scale(0.95);
+  filter: blur(8px);
+  animation: wordIn 0.6s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes wordIn {
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.desc {
+  max-width: 40rem;
+  font-size: clamp(1rem, 2.25vw, 1.3rem);
+  line-height: 1.35;
+  letter-spacing: -0.016em;
+  color: var(--lt-ink-2);
+}
+.cta {
+  margin-top: 0.4rem;
+  font-family: var(--nx-font-mono);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  color: #dedede;
+  background: #222;
+  border: 1px solid #4a4a4a;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
+  transition: background 0.2s ease;
+}
+.cta:hover {
+  background: #333;
+}
+.ready .desc,
+.ready .cta {
+  opacity: 0;
+  transform: translateY(20px);
+  animation: fadeUp 0.8s ease 0.7s forwards;
+}
+@keyframes fadeUp {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* second message that fades in as the frame reaches full size */
+.introCopy {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  opacity: var(--intro-progress);
+  transform: translateY(calc((1 - var(--intro-progress)) * 16px));
+  pointer-events: none;
+}
+.noMotion .introCopy {
+  display: none;
+}
+.overline {
+  font-family: var(--nx-font-mono);
+  font-size: 0.8rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--lt-brand);
+}
+.introTitle {
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  color: var(--lt-ink);
+}
+.introDesc {
+  max-width: 34rem;
+  color: var(--lt-ink-2);
+  font-size: 1.1rem;
+}
+
+/* ---- growing product frame ------------------------------------------------ */
+.frame {
+  --frame-budget: calc(100vh - 6.25rem - 4.5rem - var(--copy-zone-height));
+  --s: 0.6;
+  position: relative;
+  z-index: 2;
+  flex: none;
+  margin-top: 1.6rem;
+  aspect-ratio: 16 / 9;
+  width: min(
+    calc(42% + var(--grow-progress) * 58%),
+    calc(36rem + var(--grow-progress) * 36rem),
+    calc(var(--frame-budget) * 16 / 9)
+  );
+  border-radius: var(--lt-radius-lg);
+  background: #0e0e0e;
+  border: 1px solid #202020;
+  overflow: hidden;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, 0.28), 0 2px 6px rgba(0, 0, 0, 0.2);
+  text-align: left;
+}
+.noMotion .frame {
+  width: min(100%, 44rem);
+  margin-top: 0;
+}
+.frameInner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: scale(var(--s));
+  transform-origin: top left;
+  color: var(--nx-ink-1);
+  display: flex;
+  flex-direction: column;
+}
+.frameBar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 46px;
+  padding: 0 20px;
+  border-bottom: 1px solid #202020;
+  font-family: var(--nx-font-mono);
+  font-size: 13px;
+  color: #9a9a9a;
+}
+.dots {
+  display: inline-flex;
+  gap: 7px;
+}
+.dots i {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #343434;
+  display: inline-block;
+}
+.frameTitle {
+  flex: 1;
+}
+.frameState {
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  color: #9a9a9a;
+}
+.frameLive {
+  color: #6fcf97;
+}
+.frameBody {
+  display: grid;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 24px;
+  padding: 24px 24px 0;
+  flex: 1;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  align-content: start;
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 18px;
+  border: 1px solid #262626;
+  border-radius: 16px;
+  background: #141414;
+}
+.tileLabel {
+  font-size: 13px;
+  color: #8a8a8a;
+}
+.tileValue {
+  font-size: 22px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.tileSub {
+  font-family: var(--nx-font-mono);
+  font-size: 11.5px;
+  color: #6f6f6f;
+  line-height: 1.4;
+}
+.agentList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-content: start;
+}
+.agentRow {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 12px;
+  padding: 11px 14px;
+  border: 1px solid #262626;
+  border-radius: 12px;
+  font-size: 14px;
+  color: #c9c9c9;
+}
+.agentDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #4a4a4a;
+}
+.agentState {
+  font-family: var(--nx-font-mono);
+  font-size: 11.5px;
+  color: #777;
+}
+.aWorking {
+  border-color: rgba(233, 166, 78, 0.5);
+}
+.aWorking .agentDot {
+  background: #e9a64e;
+  box-shadow: 0 0 8px #e9a64e;
+  animation: pulse 1.4s ease-in-out infinite;
+}
+.aDone .agentDot {
+  background: #6fcf97;
+}
+.aFailed .agentDot {
+  background: #f0656a;
+}
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.35;
+  }
+}
+.frameNote {
+  padding: 0 24px 18px;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: #6f6f6f;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ready .word,
+  .ready .desc,
+  .ready .cta {
+    animation: none;
+    opacity: 1;
+    transform: none;
+    filter: none;
+  }
+  .aWorking .agentDot {
+    animation: none;
+  }
+}

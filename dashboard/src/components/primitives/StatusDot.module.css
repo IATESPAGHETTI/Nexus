@@ -1,0 +1,21 @@
+.dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  transition: background-color var(--nx-duration-standard) var(--nx-ease-standard);
+}
+
+.neutral {
+  background: var(--nx-ink-4);
+}
+.green {
+  background: var(--nx-green);
+}
+.amber {
+  background: var(--nx-amber);
+}
+.red {
+  background: var(--nx-red);
+}

@@ -1,0 +1,30 @@
+.row {
+  display: flex;
+  gap: var(--nx-space-2);
+  overflow-x: auto;
+  padding-bottom: 2px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  gap: var(--nx-space-2);
+  padding: var(--nx-space-2) var(--nx-space-3);
+  border-radius: var(--nx-radius-md);
+  border: 1px solid var(--nx-border-hairline);
+  background: var(--nx-surface-2);
+  cursor: pointer;
+  opacity: 0.6;
+  flex-shrink: 0;
+  transition: opacity var(--nx-duration-standard) var(--nx-ease-standard),
+    border-color var(--nx-duration-standard) var(--nx-ease-standard);
+}
+
+.item.active {
+  opacity: 1;
+  border-color: var(--nx-border-hairline-strong);
+}
+
+.confidence {
+  width: 64px;
+}

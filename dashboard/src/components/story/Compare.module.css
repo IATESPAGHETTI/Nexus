@@ -1,0 +1,131 @@
+.section {
+  position: relative;
+  padding: var(--lt-section-y) 0;
+  border-top: 1px solid var(--lt-border);
+  background: var(--lt-bg);
+  overflow: hidden;
+}
+.aurora {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 45% 40% at 20% 30%, rgba(243, 78, 63, 0.09), transparent 70%),
+    radial-gradient(ellipse 45% 40% at 80% 60%, rgba(138, 154, 255, 0.11), transparent 70%);
+  filter: blur(20px);
+  animation: drift 14s ease-in-out infinite alternate;
+}
+@keyframes drift {
+  0% { opacity: 0.7; transform: translateY(0); }
+  100% { opacity: 1; transform: translateY(-12px); }
+}
+.container {
+  position: relative;
+  width: 100%;
+  max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
+  margin: 0 auto;
+  padding: 0 var(--lt-pad-x);
+}
+
+.head { max-width: 46rem; margin: 0 auto 3.5rem; text-align: center; }
+.title {
+  font-size: clamp(2rem, 5vw, 3.25rem);
+  font-weight: 500;
+  line-height: 1.06;
+  letter-spacing: -0.031em;
+  color: var(--lt-ink);
+}
+.sub { margin-top: 1.1rem; font-size: 1.15rem; line-height: 1.45; color: var(--lt-ink-2); }
+.sub strong { color: var(--lt-ink); font-weight: 500; }
+.note { margin-top: 1rem; font-family: var(--nx-font-mono); font-size: 0.75rem; color: var(--lt-ink-3); }
+
+.grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; align-items: start; }
+
+/* window chrome: dark product panes inside the light page */
+.pane {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #262626;
+  border-radius: var(--lt-radius-md);
+  background: #0e0e0e;
+  color: #e6e6e6;
+  overflow: hidden;
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.18);
+}
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.8rem 1rem;
+  border-bottom: 1px solid #202020;
+  font-family: var(--nx-font-mono);
+  font-size: 0.8rem;
+  color: #9a9a9a;
+}
+.dots { display: inline-flex; gap: 6px; }
+.dots i { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.r { background: #ff5f57; } .y { background: #febc2e; } .g { background: #28c840; }
+.barTitle { flex: 1; }
+.badge {
+  padding: 0.15rem 0.6rem;
+  border: 1px solid rgba(243, 78, 63, 0.4);
+  border-radius: 999px;
+  background: rgba(243, 78, 63, 0.12);
+  color: #ff9d90;
+  font-size: 0.72rem;
+}
+
+.body { display: flex; flex-direction: column; gap: 0.9rem; padding: 1.25rem; }
+.user {
+  align-self: flex-end;
+  max-width: 85%;
+  padding: 0.7rem 1rem;
+  border-radius: 14px 14px 4px 14px;
+  background: #222;
+  font-size: 0.95rem;
+  line-height: 1.4;
+}
+.text { font-size: 0.95rem; line-height: 1.5; color: #cfcfcf; }
+.stack { display: flex; flex-direction: column; gap: 0.5rem; }
+.pill {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+  padding: 0.5rem 0.8rem;
+  border: 1px solid #262626;
+  border-radius: 8px;
+  background: #141414;
+  font-family: var(--nx-font-mono);
+  font-size: 0.78rem;
+}
+.pillDot { width: 6px; height: 6px; border-radius: 50%; background: #6fcf97; flex: none; animation: pulse 2s ease-in-out infinite; }
+.pillAction { color: #f0f0f0; }
+.pillTarget { color: #8a8a8a; }
+@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.card { border: 1px solid #262626; border-radius: 10px; background: #141414; padding: 0.8rem 0.9rem; }
+.cardHead { display: flex; align-items: center; gap: 0.6rem; font-family: var(--nx-font-mono); font-size: 0.78rem; }
+.verdicts { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.7rem; }
+.verdicts span {
+  padding: 0.2rem 0.6rem;
+  border: 1px solid #333;
+  border-radius: 999px;
+  font-family: var(--nx-font-mono);
+  font-size: 0.7rem;
+  color: #b5b5b5;
+}
+.plan { margin: 0.7rem 0 0; padding-left: 1.2rem; font-size: 0.88rem; line-height: 1.6; color: #cfcfcf; }
+
+.miss { margin: 0 1.25rem 1.25rem; padding: 1rem; border: 1px solid #3a1f1c; border-radius: 12px; background: #180f0e; }
+.missTitle { margin-bottom: 0.6rem; font-family: var(--nx-font-mono); font-size: 0.75rem; letter-spacing: 0.04em; text-transform: uppercase; color: #ff9d90; }
+.missRow { display: flex; align-items: baseline; gap: 0.6rem; padding: 0.35rem 0; font-size: 0.9rem; color: #bbb; }
+.missRow b { color: #eee; font-weight: 500; }
+.x { color: #f0656a; font-weight: 700; }
+
+@media (max-width: 960px) {
+  .grid { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora, .pillDot { animation: none; }
+}

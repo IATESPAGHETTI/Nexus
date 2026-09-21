@@ -1,0 +1,116 @@
+@import "@fontsource-variable/inter";
+@import "@fontsource-variable/jetbrains-mono";
+@import "./tokens.css";
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--nx-surface-0);
+  color: var(--nx-ink-1);
+  font-family: var(--nx-font-ui);
+  font-size: 16px;
+  line-height: 1.6;
+  letter-spacing: 0.005em;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  overflow-x: hidden;
+}
+
+/* One restrained warm glow at the top of the page; no coloured auras. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -2;
+  background: radial-gradient(ellipse 900px 420px at 50% -120px, rgba(243, 78, 63, 0.1), transparent 75%);
+  pointer-events: none;
+}
+
+/* Faint grid (the reference uses a subtle line-and-star field). */
+body::after {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(ellipse 80% 55% at 50% 20%, black 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse 80% 55% at 50% 20%, black 30%, transparent 80%);
+  pointer-events: none;
+}
+
+/* Display face for headings: light serif, tight tracking (reference style). */
+h1,
+h2,
+h3,
+h4 {
+  margin: 0;
+  font-family: var(--nx-font-display);
+  font-weight: 350;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+  text-wrap: balance;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+}
+
+a:focus-visible,
+button:focus-visible {
+  outline: 2px solid var(--nx-brand-on-dark);
+  outline-offset: 2px;
+}
+
+.nx-mono {
+  font-family: var(--nx-font-mono);
+  font-variant-numeric: tabular-nums;
+}
+
+.nx-tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+::selection {
+  background: rgba(243, 78, 63, 0.4);
+  color: #ffffff;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(16, 15, 15, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.26);
+}
