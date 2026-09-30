@@ -1,5 +1,17 @@
 # NEXUS Project State
 
+## Presentation: Architecture section (2026-10-01) — implemented; `tsc -b` clean; checked in browser at desktop + 375px
+Dashboard-only. New `components/story/ArchitectureSection.tsx` + `Architecture.module.css`, inserted
+between the agent bento and the steps rail on `/presentation`; "Architecture" added to `PillarsNav`.
+Contents: an SVG hub-and-spoke diagram (Incident Manager, 4 specialists fan-out, Evidence/Critic/Recovery
+sequential, guardrails, event store; ports 8101-8107), six communication-pattern cards, six design principles.
+- **Honesty**: only hierarchy/hub-and-spoke, parallel fan-out/gather, pipeline+feedback loop and the event
+  log are marked "Implemented". Peer-to-peer mesh and agent-to-agent broadcast/pub-sub are marked "Not used,
+  by design" — NEXUS agents never call each other; all calls go through the Incident Manager, and the dashboard
+  polls the event store (no push stream). The "why not" text is design rationale, not a measured comparison.
+- The diagram is labelled as architecture drawn from code, not a recorded run. Static content, no backend data.
+- Not verified: animation feel (pane was hidden, so fade-ins were mid-transition in screenshots).
+
 ## Recovery fixes + cost guard (2026-09-21/22) — implemented; deterministic tests pass; NOT verified against a live LLM (provider key was revoked mid-session)
 - **Found (from `backend/.demo_logs/`)**: (1) a run was approved and marked **RESOLVED** while
   production still had `db_slowdown: true` — `orchestrator/recovery.py::_verify_recovery` only

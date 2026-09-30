@@ -10,6 +10,7 @@ import {
 } from "../components/story/StorySections";
 import { SolutionCompare } from "../components/story/SolutionCompare";
 import { AgentBento } from "../components/story/AgentBento";
+import { ArchitectureSection } from "../components/story/ArchitectureSection";
 import { LiveBand } from "../components/story/LiveBand";
 import styles from "../components/story/Story.module.css";
 
@@ -25,6 +26,7 @@ export function PresentationPage() {
       <StatementReveal />
       <SolutionCompare />
       <AgentBento />
+      <ArchitectureSection />
       <StepsRail />
       <LiveBand />
       <FinalCta onClick={goLive} />

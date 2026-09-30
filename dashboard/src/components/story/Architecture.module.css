@@ -1,0 +1,113 @@
+.section {
+  padding: var(--lt-section-y) 0;
+  border-top: 1px solid var(--lt-border);
+  background: var(--lt-bg);
+}
+.container {
+  width: 100%;
+  max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
+  margin: 0 auto;
+  padding: 0 var(--lt-pad-x);
+}
+.title {
+  max-width: 52rem;
+  margin-bottom: 3rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--lt-ink);
+}
+.title span { color: var(--lt-ink-3); font-weight: 300; }
+
+.frame {
+  padding: 1.5rem 1.5rem 1.1rem;
+  border-radius: var(--lt-radius-md);
+  background: #0e0e0e;
+  border: 1px solid #202020;
+}
+.svg { display: block; width: 100%; height: auto; }
+.svg text { text-anchor: middle; font-family: var(--nx-font-mono); }
+.box { fill: #151515; stroke: #2c2c2c; stroke-width: 1; }
+.hub { fill: #1b1310; stroke: #f34e3f; stroke-width: 1.5; }
+.boxName { font-size: 13px; fill: #ececec; }
+.hubName { font-size: 14px; fill: #ffffff; }
+.boxSub { font-size: 10px; fill: #8a8a8a; }
+.pill { fill: #0e0e0e; stroke: #2c2c2c; }
+.pillText { font-size: 10px; fill: #b8b8b8; letter-spacing: 0.04em; }
+.edgeLabel { font-size: 10px; fill: #8a8a8a; }
+.flow { stroke-dasharray: 6 6; animation: dash 1.6s linear infinite; }
+@keyframes dash { to { stroke-dashoffset: -24; } }
+.note {
+  margin: 1rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #9a9a9a;
+}
+.note code { font-family: var(--nx-font-mono); color: #d0d0d0; }
+
+.subhead {
+  margin: 4rem 0 1.5rem;
+  font-size: 1.25rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+  color: var(--lt-ink);
+}
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1.25rem;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+  padding: 1.75rem;
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-md);
+  background: var(--lt-bg-alt);
+}
+.chip {
+  align-self: flex-start;
+  padding: 0.2rem 0.6rem;
+  border-radius: 999px;
+  font-family: var(--nx-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+.chipOn { color: #176b40; background: rgba(23, 107, 64, 0.1); }
+.chipOff { color: var(--lt-ink-3); background: rgba(0, 0, 0, 0.06); }
+.cardName { font-size: 1.15rem; font-weight: 500; letter-spacing: -0.02em; color: var(--lt-ink); }
+.cardText { flex: 1; font-size: 0.92rem; line-height: 1.5; color: var(--lt-ink-2); }
+.where { font-family: var(--nx-font-mono); font-size: 0.72rem; color: var(--lt-ink-4); }
+
+.principles {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0 2rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.principle {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  padding: 1.25rem 0;
+  border-top: 1px solid var(--lt-border);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--lt-ink-2);
+}
+.principle b { font-size: 1rem; font-weight: 500; color: var(--lt-ink); }
+.principleN { font-family: var(--nx-font-mono); font-size: 0.72rem; color: var(--lt-brand); }
+
+@media (max-width: 960px) {
+  .grid, .principles { grid-template-columns: 1fr; }
+  .frame { padding: 1rem 0.75rem 0.9rem; overflow-x: auto; }
+  .svg { min-width: 560px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .flow { animation: none; }
+}
