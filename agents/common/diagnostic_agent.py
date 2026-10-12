@@ -30,6 +30,7 @@ from google.genai import types
 
 from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import mcp_server_connection_params
+from usage_tally import UsageTally
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -96,50 +97,67 @@ class DiagnosticAgent:
         evidence: list[dict] = []
         final_text = ""
         window_start = now_iso()
+        usage = UsageTally()
 
         user_message = types.Content(role="user", parts=[types.Part(text=question)])
 
-        async for event in runner.run_async(
-            user_id="nexus",
-            session_id=session.id,
-            new_message=user_message,
-        ):
-            if not (event.content and event.content.parts):
-                continue
-            for part in event.content.parts:
-                call = getattr(part, "function_call", None)
-                if call and call.name in self.allowed_tools:
-                    key = call.id or call.name
-                    pending_calls[key] = {"tool": call.name, "arguments": dict(call.args or {})}
+        try:
+            async for event in runner.run_async(
+                user_id="nexus",
+                session_id=session.id,
+                new_message=user_message,
+            ):
+                usage.add_event(event)
+                if not (event.content and event.content.parts):
+                    continue
+                for part in event.content.parts:
+                    call = getattr(part, "function_call", None)
+                    if call and call.name in self.allowed_tools:
+                        key = call.id or call.name
+                        pending_calls[key] = {"tool": call.name, "arguments": dict(call.args or {})}
 
-                response = getattr(part, "function_response", None)
-                if response and response.name in self.allowed_tools:
-                    key = response.id or response.name
-                    call_info = pending_calls.pop(key, {"tool": response.name, "arguments": {}})
-                    raw = response.response
-                    # McpToolset returns the full MCP CallToolResult envelope
-                    # ({"content", "structuredContent", "isError"}); unwrap to the
-                    # tool's own structured dict (mcp/tools.py's real return value)
-                    # when present — still the real, unmodified tool output.
-                    if isinstance(raw, dict) and "structuredContent" in raw:
-                        result = raw["structuredContent"]
-                    else:
-                        result = raw
-                    evidence.append(
-                        make_evidence_item(
-                            tool=call_info["tool"],
-                            arguments=call_info["arguments"],
-                            result=result,
+                    response = getattr(part, "function_response", None)
+                    if response and response.name in self.allowed_tools:
+                        key = response.id or response.name
+                        call_info = pending_calls.pop(key, {"tool": response.name, "arguments": {}})
+                        raw = response.response
+                        # McpToolset returns the full MCP CallToolResult envelope
+                        # ({"content", "structuredContent", "isError"}); unwrap to the
+                        # tool's own structured dict (mcp/tools.py's real return value)
+                        # when present — still the real, unmodified tool output.
+                        if isinstance(raw, dict) and "structuredContent" in raw:
+                            result = raw["structuredContent"]
+                        else:
+                            result = raw
+                        evidence.append(
+                            make_evidence_item(
+                                tool=call_info["tool"],
+                                arguments=call_info["arguments"],
+                                result=result,
+                            )
                         )
-                    )
 
-                text = getattr(part, "text", None)
-                if text:
-                    final_text += text
+                    text = getattr(part, "text", None)
+                    if text:
+                        final_text += text
+        finally:
+            # Each task spawns its own MCP server process (stdio). Without this the
+            # process outlived the task: ~1 leaked process per agent per round.
+            for tool in agent.tools:
+                close = getattr(tool, "close", None)
+                if close is not None:
+                    try:
+                        await close()
+                    except Exception:  # never let cleanup mask the real result/error
+                        pass
 
-        return build_finding(
+        finding = build_finding(
             agent_name=self.agent_name,
             evidence=evidence,
             model_text=final_text,
             window_start=window_start,
         )
+        # Real model usage for this task; the orchestrator pops it off before the
+        # Finding is stored or shown to other agents (orchestrator/budget.py).
+        finding["usage"] = usage.as_dict()
+        return finding

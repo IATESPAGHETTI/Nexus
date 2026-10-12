@@ -1,0 +1,224 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Demo Shop (simulated)</title>
+  <style>
+    :root {
+      --bg: #f7f5f2; --card: #ffffff; --ink: #1d1b1a; --ink2: #6a6461; --line: #e6e1dc; --brand: #e8452f; --brand-ink: #fff;
+      --green: #1f8f55; --green-bg: #e3f4ea; --amber: #b86e00; --amber-bg: #fdf0d9; --red: #c23a3f; --red-bg: #fbe4e5; --shadow: 0 6px 24px rgba(0,0,0,.08);
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #141211; --card: #1e1b1a; --ink: #f2efee; --ink2: #a8a2a0; --line: #332f2d; --green: #6fcf97; --green-bg: #17301f; --amber: #e9a64e; --amber-bg: #33260f; --red: #f0656a; --red-bg: #361a1b; --shadow: 0 6px 24px rgba(0,0,0,.4); }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+    .sim { background: var(--ink); color: var(--bg); font-size: 12px; text-align: center; padding: 6px 12px; }
+    .bar { position: sticky; top: 0; z-index: 5; background: var(--card); border-bottom: 1px solid var(--line); }
+    .bar .in { max-width: 1060px; margin: 0 auto; padding: 12px 16px; display: flex; align-items: center; gap: 22px; }
+    .logo { font-size: 21px; font-weight: 800; letter-spacing: -.02em; } .logo i { color: var(--brand); font-style: normal; }
+    nav { display: flex; gap: 18px; flex: 1; } nav a { color: var(--ink2); text-decoration: none; font-weight: 500; font-size: 14px; } nav a:hover { color: var(--ink); }
+    .cartbtn { position: relative; border: 1px solid var(--line); background: var(--card); color: var(--ink); border-radius: 10px; padding: 8px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+    .cartbtn b { background: var(--brand); color: var(--brand-ink); border-radius: 999px; padding: 1px 8px; margin-left: 6px; font-size: 12px; }
+    main { max-width: 1060px; margin: 0 auto; padding: 0 16px 60px; }
+    .hero { margin: 22px 0; padding: 34px 28px; border-radius: 18px; background: linear-gradient(120deg, #e8452f, #f08a4b); color: #fff; }
+    .hero h1 { margin: 0 0 6px; font-size: clamp(24px, 4vw, 36px); letter-spacing: -.02em; } .hero p { margin: 0; opacity: .92; }
+    h2 { font-size: 20px; margin: 30px 0 14px; letter-spacing: -.01em; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 16px; }
+    .prod { background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 16px; display: flex; flex-direction: column; gap: 6px; transition: box-shadow .15s, transform .15s; }
+    .prod:hover { box-shadow: var(--shadow); transform: translateY(-2px); }
+    .pic { height: 120px; border-radius: 12px; background: var(--bg); display: grid; place-items: center; font-size: 56px; }
+    .prod .name { font-weight: 600; } .prod .blurb { color: var(--ink2); font-size: 13px; }
+    .prod .row { display: flex; align-items: center; justify-content: space-between; margin-top: auto; padding-top: 8px; }
+    .price { font-weight: 700; font-size: 17px; }
+    button { font: inherit; cursor: pointer; }
+    .add { background: var(--ink); color: var(--bg); border: 0; border-radius: 10px; padding: 8px 14px; font-weight: 600; }
+    .add:active { transform: scale(.97); }
+    .tablewrap { overflow-x: auto; border-radius: 14px; }
+    table { width: 100%; border-collapse: collapse; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+    th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); font-size: 14px; } th { color: var(--ink2); font-size: 12px; font-weight: 500; }
+    tr:last-child td { border-bottom: 0; }
+    .tag { font-size: 12px; padding: 2px 9px; border-radius: 999px; background: var(--bg); border: 1px solid var(--line); }
+    .muted { color: var(--ink2); font-size: 13px; }
+
+    /* cart drawer */
+    .scrim { position: fixed; inset: 0; background: rgba(0,0,0,.4); opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 8; }
+    .scrim.on { opacity: 1; pointer-events: auto; }
+    .drawer { position: fixed; top: 0; right: 0; bottom: 0; width: min(400px, 100%); background: var(--card); z-index: 9; transform: translateX(100%); transition: transform .22s; display: flex; flex-direction: column; box-shadow: var(--shadow); }
+    .drawer.on { transform: none; }
+    .drawer header { display: flex; justify-content: space-between; align-items: center; padding: 16px 18px; border-bottom: 1px solid var(--line); font-weight: 700; font-size: 17px; }
+    .drawer .items { flex: 1; overflow: auto; padding: 8px 18px; }
+    .line { display: grid; grid-template-columns: 38px 1fr auto; gap: 10px; align-items: center; padding: 10px 0; border-bottom: 1px solid var(--line); }
+    .line .e { font-size: 28px; } .qty { display: inline-flex; align-items: center; gap: 8px; margin-top: 2px; }
+    .qty button { width: 24px; height: 24px; border-radius: 7px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); }
+    .drawer footer { padding: 16px 18px; border-top: 1px solid var(--line); display: flex; flex-direction: column; gap: 10px; }
+    .drawer input { font: inherit; padding: 9px 12px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--ink); width: 100%; }
+    .total { display: flex; justify-content: space-between; font-weight: 700; font-size: 17px; }
+    .checkout { background: var(--brand); color: var(--brand-ink); border: 0; border-radius: 12px; padding: 12px; font-weight: 700; font-size: 15px; }
+    .checkout:disabled { opacity: .55; cursor: wait; }
+    .result { font-size: 13px; min-height: 18px; }
+    .result.ok { color: var(--green); } .result.bad { color: var(--red); }
+
+    /* toast */
+    .toast { position: fixed; left: 50%; bottom: 24px; transform: translate(-50%, 30px); opacity: 0; background: var(--ink); color: var(--bg); padding: 11px 18px; border-radius: 12px; z-index: 12; transition: all .25s; pointer-events: none; }
+    .toast.on { opacity: 1; transform: translate(-50%, 0); } .toast.bad { background: var(--red); color: #fff; }
+
+    /* demo monitor strip (not part of a real shop) */
+    .mon { border-top: 1px solid var(--line); background: var(--bg); }
+    .mon .in { max-width: 1060px; margin: 0 auto; padding: 7px 16px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; font-size: 12.5px; }
+    .mon .lbl { font-weight: 700; }
+    .pill { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px; border-radius: 999px; font-weight: 700; font-size: 12px; border: 1px solid var(--line); background: var(--card); }
+    .pill i { width: 8px; height: 8px; border-radius: 50%; background: var(--ink2); }
+    .pill.ok { background: var(--green-bg); color: var(--green); border-color: transparent; } .pill.ok i { background: var(--green); }
+    .pill.slow { background: var(--amber-bg); color: var(--amber); border-color: transparent; } .pill.slow i { background: var(--amber); }
+    .pill.down { background: var(--red-bg); color: var(--red); border-color: transparent; } .pill.down i { background: var(--red); }
+    .bars { display: flex; align-items: flex-end; gap: 2px; height: 22px; width: 150px; }
+    .bars div { flex: 1; min-width: 3px; background: var(--green); border-radius: 2px 2px 0 0; } .bars .slow { background: var(--amber); } .bars .err { background: var(--red); }
+    .mon label { display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 600; margin-left: auto; }
+    @media (max-width: 640px) { nav { display: none; } .mon label { margin-left: 0; } th:nth-child(5), td:nth-child(5) { display: none; } }
+  </style>
+</head>
+<body>
+  <div class="sim">SIMULATED SHOP: invented products and orders for the NEXUS research demo. Nothing here is real, and no payment is taken.</div>
+  <div class="bar"><div class="in">
+    <div class="logo">Demo<i>Shop</i></div>
+    <nav><a href="#products">Products</a><a href="#orders">Recent orders</a></nav>
+    <button class="cartbtn" id="openCart">Cart <b id="cartCount">0</b></button>
+  </div>
+  <div class="mon" aria-label="Demo monitor"><div class="in">
+    <span class="lbl">Demo monitor</span>
+    <span class="pill" id="pill"><i></i><span id="pillText">Checking</span></span>
+    <span class="muted">typical order request <b id="median">–</b> ms · last <b id="last">–</b> ms</span>
+    <div class="bars" id="bars" title="Each bar is one real request this page made"></div>
+    <label><input type="checkbox" id="auto" /> Simulate shoppers</label>
+  </div></div>
+  </div>
+
+  <main>
+    <section class="hero"><h1>Spring gear sale</h1><p>Everyday essentials, free shipping over $50.</p></section>
+
+    <h2 id="products">Products</h2>
+    <div class="grid" id="grid"><div class="muted">Loading products…</div></div>
+
+    <h2 id="orders">Recent orders</h2>
+    <div class="tablewrap"><table><thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Status</th><th>Placed</th></tr></thead><tbody id="orderRows"><tr><td colspan="5" class="muted">Loading…</td></tr></tbody></table></div>
+  </main>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="drawer" id="drawer" aria-label="Shopping cart">
+    <header><span>Your cart</span><button class="cartbtn" id="closeCart">Close</button></header>
+    <div class="items" id="cartItems"></div>
+    <footer>
+      <input id="who" maxlength="40" placeholder="Your name" value="guest" aria-label="Your name" />
+      <div class="total"><span>Total</span><span id="cartTotal">$0.00</span></div>
+      <button class="checkout" id="checkout">Place order</button>
+      <div class="result" id="result" aria-live="polite"></div>
+    </footer>
+  </aside>
+  <div class="toast" id="toast"></div>
+
+
+<script>
+  const LIMIT_MS = 100;                 // same "healthy" limit NEXUS uses to verify a recovery
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const money = (n) => "$" + Number(n).toFixed(2);
+  let products = [];
+  const cart = new Map();               // product_id -> quantity
+  const history = [];                   // {ms, ok} for the demo monitor (orders traffic only)
+
+  function median(v) { if (!v.length) return null; const s = [...v].sort((a, b) => a - b), m = s.length >> 1; return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+
+  function renderMonitor() {
+    const recent = history.slice(-30);
+    $("bars").innerHTML = recent.map((h) => `<div class="${!h.ok ? "err" : h.ms > LIMIT_MS ? "slow" : ""}" style="height:${Math.max(6, Math.min(100, h.ms / 4))}%" title="${Math.round(h.ms)} ms"></div>`).join("");
+    const last = history[history.length - 1];
+    $("last").textContent = last ? Math.round(last.ms) : "–";
+    const okMs = history.slice(-8).filter((h) => h.ok).map((h) => h.ms), med = median(okMs);
+    $("median").textContent = med === null ? "–" : Math.round(med);
+    const fails = history.slice(-8).filter((h) => !h.ok).length;
+    let cls = "pill", text = "Checking";
+    if (history.length) {
+      if (fails >= Math.ceil(Math.min(history.length, 8) / 2)) { cls = "pill down"; text = "Errors"; }
+      else if (med !== null && med > LIMIT_MS) { cls = "pill slow"; text = "Slow"; }
+      else { cls = "pill ok"; text = "Healthy"; }
+    }
+    $("pill").className = cls; $("pillText").textContent = text;
+  }
+
+  async function timed(path, options) {
+    const t0 = performance.now();
+    let res = null, data = null;
+    try { res = await fetch(path, { cache: "no-store", ...options }); data = await res.json().catch(() => null); } catch (e) { /* network error */ }
+    const ms = performance.now() - t0, ok = !!(res && res.ok);
+    if (path.startsWith("/orders")) { history.push({ ms, ok }); renderMonitor(); }   // product browsing is not the DB-backed path
+    return { ok, status: res ? res.status : 0, data, ms };
+  }
+
+  function toast(msg, bad) { const t = $("toast"); t.textContent = msg; t.className = "toast on" + (bad ? " bad" : ""); clearTimeout(toast.t); toast.t = setTimeout(() => (t.className = "toast"), 2600); }
+
+  function renderGrid() {
+    $("grid").innerHTML = products.map((p) => `
+      <div class="prod"><div class="pic">${p.emoji}</div><div class="name">${esc(p.name)}</div><div class="blurb">${esc(p.blurb)}</div>
+      <div class="row"><span class="price">${money(p.price)}</span><button class="add" data-add="${p.id}">Add to cart</button></div></div>`).join("");
+  }
+
+  function renderCart() {
+    let count = 0, total = 0;
+    const rows = [...cart.entries()].map(([id, q]) => {
+      const p = products.find((x) => x.id === id); if (!p) return "";
+      count += q; total += p.price * q;
+      return `<div class="line"><div class="e">${p.emoji}</div><div><div>${esc(p.name)}</div><div class="qty"><button data-dec="${id}">−</button>${q}<button data-inc="${id}">+</button></div></div><div class="price">${money(p.price * q)}</div></div>`;
+    }).join("");
+    $("cartItems").innerHTML = rows || '<p class="muted">Your cart is empty.</p>';
+    $("cartCount").textContent = count; $("cartTotal").textContent = money(total);
+    $("checkout").disabled = !count;
+  }
+
+  async function loadOrders() {
+    const r = await timed("/orders");
+    if (!r.ok) { $("orderRows").innerHTML = '<tr><td colspan="5" class="muted">We couldn\'t load orders right now.</td></tr>'; return; }
+    $("orderRows").innerHTML = r.data.orders.slice(-8).reverse().map((o) =>
+      `<tr><td>${o.id}</td><td>${esc(o.customer)}</td><td>${money(o.amount)}</td><td><span class="tag">${esc(o.status)}</span></td><td class="muted">${esc(o.created_at.replace("T", " ").replace("Z", ""))}</td></tr>`).join("");
+  }
+
+  async function checkout() {
+    const items = [...cart.entries()].map(([product_id, quantity]) => ({ product_id, quantity }));
+    if (!items.length) return;
+    $("checkout").disabled = true; $("checkout").textContent = "Placing your order…"; $("result").className = "result"; $("result").textContent = "";
+    const r = await timed("/orders", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ customer: $("who").value.trim() || "guest", items }) });
+    $("checkout").textContent = "Place order";
+    if (r.ok) {
+      cart.clear(); renderCart();
+      $("result").className = "result ok"; $("result").textContent = `Order #${r.data.order.id} confirmed (${money(r.data.order.amount)}). Took ${Math.round(r.ms)} ms.`;
+      toast(`Order #${r.data.order.id} placed`); loadOrders();
+    } else {
+      $("checkout").disabled = false;
+      $("result").className = "result bad"; $("result").textContent = `Something went wrong, please try again. (error ${r.status || "network"}, ${Math.round(r.ms)} ms)`;
+      toast("Checkout failed", true);
+    }
+  }
+
+  document.addEventListener("click", (e) => {
+    const t = e.target;
+    if (t.dataset.add) { const id = +t.dataset.add; cart.set(id, (cart.get(id) || 0) + 1); renderCart(); toast("Added to cart"); }
+    if (t.dataset.inc) { const id = +t.dataset.inc; cart.set(id, Math.min(10, cart.get(id) + 1)); renderCart(); }
+    if (t.dataset.dec) { const id = +t.dataset.dec, q = cart.get(id) - 1; q > 0 ? cart.set(id, q) : cart.delete(id); renderCart(); }
+  });
+  const setDrawer = (on) => { $("drawer").classList.toggle("on", on); $("scrim").classList.toggle("on", on); };
+  $("openCart").onclick = () => setDrawer(true); $("closeCart").onclick = () => setDrawer(false); $("scrim").onclick = () => setDrawer(false);
+  $("checkout").onclick = checkout;
+  let timer = null;
+  $("auto").onchange = (e) => { clearInterval(timer); if (e.target.checked) timer = setInterval(loadOrders, 1000); };
+
+  (async function init() {
+    renderCart();
+    const p = await timed("/products");
+    products = p.ok ? p.data.products : [];
+    if (!products.length) $("grid").innerHTML = '<div class="muted">The catalog is unavailable right now.</div>';
+    renderGrid(); renderCart(); loadOrders();
+  })();
+</script>
+</body>
+</html>

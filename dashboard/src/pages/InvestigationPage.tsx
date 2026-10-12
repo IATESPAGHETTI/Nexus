@@ -108,7 +108,7 @@ export function InvestigationPage() {
         <div className={styles.rail}>
           <A2AStreamPanel rows={a2aRows(events)} />
           <MCPActivityPanel rows={mcpRows(events, evidenceLookup)} />
-          <UsagePanel />
+          <UsagePanel usage={incident.token_usage} />
         </div>
       </div>
     </div>

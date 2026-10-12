@@ -14,12 +14,14 @@ endpoint. Owned by Vanshika's workstream (implemented by Deepu — see root CLAU
   human decision made outside this process, appends
   `HUMAN_APPROVAL_GRANTED`/`HUMAN_APPROVAL_REJECTED`), never decides anything
   itself.
-- `app/incident_store.py` (Phase 6) — thread-safe in-memory incident state +
-  event store (same `Lock` + `dict` pattern as `production/observability.py`).
-  Implements the incident-state field set from root CLAUDE.md section 15 and
-  the event envelope from `docs/EVENT_SCHEMA.md`. In-memory only (resets on
-  process restart) — see "Known limitations" in `docs/PROJECT_STATE.md`; no
-  durable storage was required for Phase 6.
+- `app/incident_store.py` (Phase 6, SQLite-backed since 2026-10-10) — thread-safe
+  incident state + event store (one `Lock`, one SQLite connection). Implements
+  the incident-state field set from root CLAUDE.md section 15 and the event
+  envelope from `docs/EVENT_SCHEMA.md`. **Durable**: survives a backend restart.
+  `NEXUS_DB_PATH` picks the file (default `backend/.data/nexus.db`, gitignored;
+  `:memory:` = not persisted; docker-compose mounts a volume at `/data`).
+  `clear()` is test-only and refuses to run on a file DB; `close()` simulates
+  a restart in tests. `tests/conftest.py` forces `:memory:` for the suite.
 - `app/demo.py` (Phase 10, "Inject Controlled Failure") — the ONE deliberate,
   narrow exception to the "no business logic" rule below. `GET /demo/status`:
   real HTTP probes (production `/health`, each of the 7 A2A agents'
@@ -54,6 +56,8 @@ uvicorn app.main:app --reload --port 8000
 ```bash
 pytest tests/test_health.py tests/test_incidents.py
 ```
+`test_incident_persistence.py` (6 tests): incidents/events/ids survive a
+simulated restart, `clear()` refuses a file DB, HTTP API serves pre-restart data.
 `test_incidents.py`: 10 `TestClient` tests, no network — incident creation,
 404s on unknown incident_id, event append + timeline/list, partial-state-merge
 semantics (Phase 6), and the approve endpoint's decision recording +

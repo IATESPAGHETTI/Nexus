@@ -1,0 +1,216 @@
+.tracker {
+  list-style: none;
+  margin: 0 auto;
+  padding: 0;
+  max-width: 760px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stage {
+  display: grid;
+  grid-template-columns: 36px 1fr;
+  gap: 16px;
+}
+
+.rail {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.badge {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--nx-ink-3);
+  border: 1px solid var(--nx-border-hairline-strong);
+  background: var(--nx-surface-glass-light);
+}
+
+.line {
+  flex: 1;
+  width: 2px;
+  min-height: 20px;
+  margin: 4px 0;
+  background: var(--nx-border-hairline);
+}
+
+.body {
+  padding-bottom: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.stageTitle {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--nx-ink-1);
+}
+
+.stateWord {
+  font-family: var(--nx-font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--nx-ink-3);
+}
+
+.purpose {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-ink-3);
+}
+
+.result {
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--nx-ink-1);
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nx-border-hairline);
+  background: var(--nx-surface-glass-light);
+}
+
+.rows {
+  list-style: none;
+  margin: 4px 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 10px 170px 1fr;
+  align-items: baseline;
+  gap: 10px;
+  font-size: 13px;
+}
+
+.rowDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--nx-ink-4);
+}
+
+.rowName {
+  color: var(--nx-ink-2);
+  font-weight: 500;
+}
+
+.rowText {
+  color: var(--nx-ink-3);
+  min-width: 0;
+}
+
+.row_working .rowDot {
+  background: var(--nx-amber);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.row_done .rowDot {
+  background: var(--nx-green);
+}
+
+.row_failed .rowDot {
+  background: var(--nx-red);
+}
+
+/* stage states */
+.waiting .stageTitle {
+  color: var(--nx-ink-2);
+}
+
+.working .badge {
+  color: var(--nx-amber);
+  border-color: var(--nx-amber-border);
+  background: var(--nx-amber-bg);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+
+.working .stateWord {
+  color: var(--nx-amber);
+}
+
+.done .badge {
+  color: var(--nx-green);
+  border-color: var(--nx-green-border);
+  background: var(--nx-green-bg);
+}
+
+.done .stateWord {
+  color: var(--nx-green);
+}
+
+.done .line {
+  background: var(--nx-green-border);
+}
+
+.failed .badge {
+  color: var(--nx-red);
+  border-color: var(--nx-red-border);
+  background: var(--nx-red-bg);
+}
+
+.failed .stateWord {
+  color: var(--nx-red);
+}
+
+.failed .result {
+  border-color: var(--nx-red-border);
+}
+
+.skipped .badge {
+  opacity: 0.5;
+}
+
+.skipped .stageTitle {
+  color: var(--nx-ink-3);
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.45;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .working .badge,
+  .row_working .rowDot {
+    animation: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .row {
+    grid-template-columns: 10px 1fr;
+  }
+
+  .rowText {
+    grid-column: 2;
+  }
+}

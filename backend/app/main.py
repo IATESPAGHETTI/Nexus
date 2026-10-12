@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import hmac
+import os
 import time
 from typing import Any
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, ConfigDict
 
@@ -33,6 +35,19 @@ def demo_status() -> dict:
     """Real system-status check for the Mission Control home page -- every
     field is a live HTTP probe result, never a hardcoded 'online'."""
     return demo.system_status()
+
+
+@app.post("/demo/agents/start")
+def demo_start_agents() -> dict:
+    """The dashboard's agent ON switch: launches the 7 fixed agent services that
+    are not already running (see demo.start_agents). Takes no input."""
+    return demo.start_agents()
+
+
+@app.post("/demo/agents/stop")
+def demo_stop_agents() -> dict:
+    """The dashboard's agent OFF switch (see demo.stop_agents). Takes no input."""
+    return demo.stop_agents()
 
 
 class InjectFailureRequest(BaseModel):
@@ -129,24 +144,46 @@ def update_incident_state(incident_id: str, body: IncidentStateUpdate) -> dict:
     return incident
 
 
+def _require_approver_token(supplied: str | None) -> None:
+    """Optional gate on the human-approval endpoint. With NEXUS_APPROVER_TOKEN unset (the
+    default) nothing changes. When set, only a caller that presents the same token in
+    `X-Approver-Token` may approve/reject -- so other processes on the machine cannot
+    approve a recovery by calling the backend directly. The dashboard's dev proxy adds it
+    server-side (dashboard/vite.config.ts); it is never put in the browser bundle."""
+    expected = os.environ.get("NEXUS_APPROVER_TOKEN")
+    if expected and not hmac.compare_digest(supplied or "", expected):
+        raise HTTPException(status_code=403, detail="approval requires a valid X-Approver-Token")
+
+
 @app.post("/incidents/{incident_id}/approve")
-def approve_recovery_plan(incident_id: str, body: ApprovalDecision) -> dict:
+def approve_recovery_plan(
+    incident_id: str, body: ApprovalDecision, x_approver_token: str | None = Header(default=None)
+) -> dict:
     """Human approval gate for a proposed recovery plan (root CLAUDE.md
     section 20). `orchestrator/recovery.py` never calls this itself -- it
     only polls for the result. This must be called out-of-band, by a human
     (via the dashboard once built, or directly) while an investigation's
     recovery flow is waiting on `approval_state.decision == "PENDING"`."""
+    _require_approver_token(x_approver_token)
     if body.decision not in ("APPROVED", "REJECTED"):
         raise HTTPException(status_code=400, detail="decision must be 'APPROVED' or 'REJECTED'")
     incident = incident_store.get_incident(incident_id)
     if incident is None:
         raise HTTPException(status_code=404, detail="incident not found")
 
+    # Late approval: the window closed (EXPIRED) and the original orchestrator process has
+    # exited, so approving would otherwise do nothing. Resume the SAVED plan instead.
+    late = (incident.get("approval_state") or {}).get("decision") == "EXPIRED" and body.decision == "APPROVED"
+    if late and not demo.can_resume_recovery():
+        raise HTTPException(status_code=503, detail="cannot resume: orchestrator environment (.venv-orchestrator) not found")
+
     approval_state = {
         "decision": body.decision,
         "approved_by": body.approved_by,
         "decided_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
     }
+    if late:
+        approval_state["late"] = True
     incident = incident_store.update_incident(incident_id, {"approval_state": approval_state})
     incident_store.append_event(
         incident_id,
@@ -156,6 +193,8 @@ def approve_recovery_plan(incident_id: str, body: ApprovalDecision) -> dict:
         status=body.decision,
         payload={"approved_by": body.approved_by},
     )
+    if late:
+        demo.spawn_resume_recovery(incident_id)
     return incident
 
 

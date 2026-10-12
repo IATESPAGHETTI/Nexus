@@ -128,3 +128,30 @@ def test_gemini_configuration_is_valid_but_not_an_official_benchmark():
 def test_unknown_runtime_provider_is_rejected():
     with pytest.raises(ValueError, match="NEXUS_LLM_PROVIDER"):
         runtime_config.resolve_runtime_config("unsupported-provider", "model")
+
+
+# --- measured token cost (incident.token_usage -> benchmark records) ---------
+
+
+def test_token_cost_is_measured_when_the_incident_recorded_usage():
+    incident = {"token_usage": {"total": {"llm_calls": 12, "total_tokens": 32000}, "unmeasured_tasks": 1}}
+    assert scoring.token_cost(incident) == {"llm_calls": 12, "total_tokens": 32000, "unmeasured_tasks": 1}
+
+
+@pytest.mark.parametrize("incident", [None, {}, {"token_usage": {}}, {"token_usage": {"total": {"llm_calls": 0}}}])
+def test_token_cost_stays_unavailable_when_nothing_was_recorded(incident):
+    assert scoring.token_cost(incident) == "Unavailable from provider"
+
+
+def test_aggregate_averages_token_cost_only_over_runs_that_have_it():
+    base = {"made_a_diagnosis": True, "abstained": False, "correct": True, "false_diagnosis": False, "latency_seconds": 1.0}
+    records = [
+        dict(base, token_cost={"llm_calls": 10, "total_tokens": 20000, "unmeasured_tasks": 0}),
+        dict(base, token_cost={"llm_calls": 20, "total_tokens": 40000, "unmeasured_tasks": 0}),
+        dict(base, token_cost="Unavailable from provider"),
+    ]
+    summary = scoring.aggregate(records)
+    assert summary["runs_with_token_data"] == 2
+    assert summary["avg_llm_calls"] == 15.0
+    assert summary["avg_total_tokens"] == 30000
+    assert "avg_total_tokens" not in scoring.aggregate([dict(base, token_cost="Unavailable from provider")])

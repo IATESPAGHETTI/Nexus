@@ -63,8 +63,10 @@ both, kept for accurate history.)
   `MCPActivityPanel`, `HypothesisPanel` (selector + `HypothesisConstellation`,
   the evidence<->hypothesis spatial centerpiece + `RevisionBanner`),
   `CriticChallengePanel`, `ReEvaluationLoopIndicator`, `DecisionPanel`
-  (diagnosis/abstention), `UsagePanel` (designed "Unavailable from provider"
-  empty state — no token/usage data exists anywhere in the pipeline yet),
+  (diagnosis/abstention), `UsagePanel` (2026-10-10: renders the real
+  `incident.token_usage` — model calls/tokens vs NEXUS's own limits, per-agent
+  usage, a warning when a limit stopped the run; empty state when none recorded;
+  provider quota is still always "Unavailable from provider"),
   `RecoveryPanel` (Phase 8, real — renders `incident.recovery_plan`/
   `approval_state`/`action_history` plus whichever real recovery-related
   events have actually been emitted; an honest neutral empty state, never

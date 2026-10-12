@@ -54,7 +54,8 @@ INSTRUCTION = (
     "contradiction. Use CONTRADICTED when evidence_pool entries actively "
     "conflict with it. Use INSUFFICIENT_EVIDENCE or REQUEST_MORE_EVIDENCE when "
     "the evidence_pool is too thin either way. Use ABSTAIN only if no "
-    "reasonable diagnosis is currently supportable at all."
+    "reasonable diagnosis is currently supportable at all. "
+    "TIME MATTERS: read the timestamps in logs and traces. If requests were fast EARLIER and are consistently slow AFTER some point, that is a step change with an onset time, not intermittent or bimodal behaviour; fast requests that happened BEFORE the onset do NOT contradict a claim about the slowness that followed. Only treat a fast response as conflicting evidence if it occurred during the same period as the slow ones. "
 )
 
 DEFAULT_QUESTION = json.dumps({"hypothesis": {}, "evidence_pool": []})
@@ -139,7 +140,10 @@ class CriticAgent:
         evidence_pool = payload.get("evidence_pool") or []
 
         raw = await self._reasoner.investigate(question)
-        return build_critique(hypothesis, evidence_pool, raw.get("parsed"))
+        critique = build_critique(hypothesis, evidence_pool, raw.get("parsed"))
+        # Real model usage; the orchestrator pops it before storing the critique.
+        critique["usage"] = raw.get("usage")
+        return critique
 
 
 critic_agent = CriticAgent()

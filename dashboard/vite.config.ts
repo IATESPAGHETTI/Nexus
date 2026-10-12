@@ -8,10 +8,15 @@ import react from '@vitejs/plugin-react'
 // bundled into 2 files instead of dev mode's ~100+ unbundled module
 // requests -- see docs/PROJECT_STATE.md's startup-performance note) needs
 // the same /api proxy as the dev server, or it can't reach backend/ either.
+// Optional approval gate: if NEXUS_APPROVER_TOKEN is set in the environment that starts the
+// dev server, the proxy attaches it to every backend call (server-side only, never in the
+// browser bundle). The backend then refuses approvals that do not carry it.
+const APPROVER_TOKEN = process.env.NEXUS_APPROVER_TOKEN
 const API_PROXY = {
   target: 'http://127.0.0.1:8000',
   changeOrigin: true,
   rewrite: (path: string) => path.replace(/^\/api/, ''),
+  ...(APPROVER_TOKEN ? { headers: { 'X-Approver-Token': APPROVER_TOKEN } } : {}),
 }
 
 // Presentation page: the demo sends real GET /orders requests to the simulated
@@ -34,6 +39,9 @@ const PROXY = { '/api': API_PROXY, '/production': PRODUCTION_TRAFFIC_PROXY }
 
 export default defineConfig({
   plugins: [react()],
+  // Optional: two dev servers that share one node_modules (e.g. a git worktree linked to the main
+  // checkout) overwrite each other's dependency cache and break React. Give one its own folder.
+  ...(process.env.NEXUS_VITE_CACHE ? { cacheDir: process.env.NEXUS_VITE_CACHE } : {}),
   server: {
     port: 5173,
     proxy: PROXY,

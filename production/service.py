@@ -1,10 +1,12 @@
 import random
 import time
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse
-from pydantic import BaseModel
+from fastapi.responses import HTMLResponse, JSONResponse
+from pydantic import BaseModel, Field
 
+import catalog
 import changes
 import db
 import state
@@ -20,6 +22,11 @@ RESOURCE_EXHAUSTION_ERROR_RATE = 0.08
 
 
 def _record_request(request: Request, trace_id: str, status_code: int, duration_ms: float) -> None:
+    # /admin/* is NEXUS's own control plane (fault injection / recovery), not
+    # customer traffic. Recording it let agents "diagnose" the test harness
+    # ("POST /admin/fault/inject at 17:36") instead of the real symptom.
+    if request.url.path.startswith("/admin"):
+        return
     is_error = status_code >= 500
     endpoint = f"{request.method} {request.url.path}"
     metrics_store.record(endpoint, duration_ms, is_error)
@@ -86,6 +93,17 @@ def root() -> dict:
     return {"status": "ok", "service": "nexus-production"}
 
 
+_STOREFRONT = Path(__file__).with_name("storefront.html")
+
+
+@app.get("/shop", response_class=HTMLResponse)
+def storefront() -> str:
+    """A small human-facing page over the same /orders API, so a viewer can SEE the
+    simulated shop slow down and recover. It issues real requests that are recorded
+    like any other customer traffic."""
+    return _STOREFRONT.read_text(encoding="utf-8")
+
+
 @app.get("/health")
 def health() -> dict:
     return {"status": "ok", "service": "nexus-production"}
@@ -146,6 +164,39 @@ def list_orders() -> dict:
     _check_order_endpoint_faults()
     rows = db.run_query("SELECT * FROM orders ORDER BY id")
     return {"orders": [dict(row) for row in rows]}
+
+
+class OrderItem(BaseModel):
+    product_id: int
+    quantity: int = Field(ge=1, le=10)
+
+
+class NewOrder(BaseModel):
+    customer: str = Field(min_length=1, max_length=40)
+    items: list[OrderItem] = Field(min_length=1, max_length=10)
+
+
+@app.get("/products")
+def list_products() -> dict:
+    """Static catalog (not database-backed): stays fast while the database is slow."""
+    return {"products": catalog.PRODUCTS}
+
+
+@app.post("/orders", status_code=201)
+def place_order(body: NewOrder) -> dict:
+    """Checkout. Goes through the same fault checks as the other order endpoints (a bad
+    deployment or config error breaks it too) and the same database path (a slow database
+    slows it). The total is computed here from the catalog; client-supplied prices are ignored."""
+    _check_order_endpoint_faults()
+    lines, total = [], 0.0
+    for item in body.items:
+        product = catalog.BY_ID.get(item.product_id)
+        if product is None:
+            raise HTTPException(status_code=400, detail=f"unknown product_id {item.product_id}")
+        lines.append({"product_id": product["id"], "name": product["name"], "quantity": item.quantity, "unit_price": product["price"]})
+        total += product["price"] * item.quantity
+    order = db.create_order(body.customer.strip() or "guest", round(total, 2))
+    return {"order": order, "items": lines}
 
 
 @app.get("/orders/{order_id}")

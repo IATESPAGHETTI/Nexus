@@ -13,6 +13,7 @@ This is genuine `git` execution, not a filesystem walk or arbitrary shell access
 
 from __future__ import annotations
 
+import os
 import subprocess
 
 from config import (
@@ -26,6 +27,17 @@ from config import (
 
 class InvalidGitDiffPathError(Exception):
     pass
+
+
+class GitDiffDisabledError(Exception):
+    pass
+
+
+DISABLED_MESSAGE = (
+    "get_git_diff is disabled: this repository's own history contains the simulator's fault-injection "
+    "code and docs, so reading it would tell the agent the answer (blind-evaluation contamination). "
+    "Set NEXUS_ENABLE_GIT_DIFF=1 to enable it deliberately. Use get_recent_deployments for change history."
+)
 
 
 def _validate_paths(paths: list[str]) -> list[str]:
@@ -44,6 +56,8 @@ def _run_git(args: list[str]) -> str:
         ["git", "-C", str(REPO_ROOT), *args],
         capture_output=True,
         text=True,
+        encoding="utf-8",  # git emits UTF-8; the Windows default (cp1252) crashed on non-ASCII history
+        errors="replace",
         timeout=GIT_TIMEOUT_SECONDS,
         check=False,
     )
@@ -51,6 +65,8 @@ def _run_git(args: list[str]) -> str:
 
 
 def get_diff(paths: list[str] | None = None, max_commits: int = GIT_DIFF_MAX_COMMITS) -> dict:
+    if os.environ.get("NEXUS_ENABLE_GIT_DIFF") != "1":
+        raise GitDiffDisabledError(DISABLED_MESSAGE)
     scoped_paths = _validate_paths(paths or [])
     max_commits = max(1, min(max_commits, GIT_DIFF_MAX_COMMITS))
 

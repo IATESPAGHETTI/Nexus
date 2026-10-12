@@ -234,18 +234,23 @@ Before substantial Phase 3 implementation, the ADK/Groq spike described below mu
 
 # 6. RUNTIME LLM
 
-NEXUS must use:
+NEXUS uses **DeepSeek** by default:
 
 ```text
-GPT-OSS 120B
+deepseek/deepseek-chat
         ↓
-      Groq
+ ADK + LiteLLM
 ```
+
+Set by the project owner (default since 2026-09-19, reconfirmed 2026-10-12). Groq
+GPT-OSS 120B (`NEXUS_LLM_PROVIDER=groq`) and Gemini (`NEXUS_LLM_PROVIDER=gemini`)
+remain supported opt-ins; the earlier Groq-only requirement no longer applies. Any
+benchmark result must state which provider/model produced it (the runner already
+labels non-default runs).
 
 The runtime model is NOT:
 
 - Anthropic Claude
-- Gemini
 - OpenAI hosted GPT
 
 Claude Code may be used to BUILD NEXUS, but Claude Code is completely separate from the LLM that NEXUS uses at runtime.
@@ -256,21 +261,24 @@ Do not confuse:
 Claude Code
 = development agent
 
-GPT-OSS 120B via Groq
+DeepSeek (deepseek-chat) by default
 = NEXUS runtime reasoning model
 ```
 
 ---
 
-# 7. GROQ SECRET MANAGEMENT
+# 7. API KEY (SECRET) MANAGEMENT
 
 The real key must live only in the local root `.env`.
 
 Expected:
 
 ```env
+DEEPSEEK_API_KEY=sk-...
+# optional opt-ins:
 GROQ_API_KEY=gsk_...
 GROQ_MODEL=openai/gpt-oss-120b
+GEMINI_API_KEY=...
 ```
 
 Rules:

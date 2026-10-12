@@ -71,6 +71,29 @@ export function getDemoStatus(): Promise<DemoStatus> {
   return getJson<DemoStatus>("/demo/status");
 }
 
+export interface StartAgentsResult {
+  started: string[];
+  already_running: string[];
+  failed: string[];
+  note: string;
+}
+
+// The ON switch: asks the backend to launch the 7 agent services that are down.
+export function startAgents(): Promise<StartAgentsResult> {
+  return postJson<StartAgentsResult>("/demo/agents/start", {});
+}
+
+export interface StopAgentsResult {
+  stopped: string[];
+  still_running: string[];
+  note: string;
+}
+
+// The OFF switch: stops the agent services the dashboard itself started.
+export function stopAgents(): Promise<StopAgentsResult> {
+  return postJson<StopAgentsResult>("/demo/agents/stop", {});
+}
+
 export interface InvestigateResult {
   incident_id: string;
   fault_type: string;

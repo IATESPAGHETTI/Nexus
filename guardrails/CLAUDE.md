@@ -32,6 +32,11 @@ independently re-validates and actually calls a mutating endpoint.
   every action/param/risk_level against `config.ALLOWED_ACTIONS` from
   scratch. ANY invalid action/param/risk/missing-rollback-plan rejects the
   WHOLE plan (never silently drops the bad part and approves the rest).
+- `remedy.py` (2026-10-11) — deterministic "can this plan fix what the evidence
+  shows" check used by `policy.validate_plan(plan, evidence_pool)` and to build
+  the Recovery Agent's `remedy_guidance`. Reads only MCP evidence (never the
+  simulator's ground truth); recognises db_slowdown / config_error /
+  dependency_failure / resource_exhaustion; no recognised symptom = no opinion.
 - `executor.py` — `execute_plan(plan) -> {"action_history", "all_succeeded",
   "kill_switch_engaged"}`. Runs each already-approved action in order via
   `production_client.py`; re-checks the kill switch before every single

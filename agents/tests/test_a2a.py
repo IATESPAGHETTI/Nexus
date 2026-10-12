@@ -40,7 +40,7 @@ from remote_agent import build_remote_agent  # noqa: E402
 AGENT_TOOL_ALLOWLISTS = {
     "metrics_agent": {"get_metrics"},
     "logs_traces_agent": {"query_logs", "get_trace"},
-    "change_analysis_agent": {"get_recent_deployments", "get_git_diff"},
+    "change_analysis_agent": {"get_recent_deployments"},
     "database_agent": {"get_database_stats"},
 }
 

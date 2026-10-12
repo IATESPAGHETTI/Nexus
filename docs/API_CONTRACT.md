@@ -14,8 +14,11 @@ Liveness check for the NEXUS backend itself.
 
 ### Incident state + event store — implemented (Phase 6)
 
-Real, in-memory (per-process, resets on restart) persistence — `backend/app/incident_store.py`.
-Called for real by `orchestrator/event_bridge.py` during a live investigation, not just by tests.
+Real, durable persistence (SQLite; survives a backend restart) — `backend/app/incident_store.py`.
+The database file is `NEXUS_DB_PATH` (default `backend/.data/nexus.db`; docker-compose mounts a
+volume at `/data`; `:memory:` disables persistence and is what the test suite uses). It was
+in-memory only until 2026-10-10. Called for real by `orchestrator/event_bridge.py` during a live
+investigation, not just by tests.
 
 ```text
 POST /incidents                 {"description": str} -> full initial incident state
@@ -331,6 +334,28 @@ the model's own text (with a trailing `CONFIDENCE: <0-1>` line stripped out into
 the `confidence` field). If the model didn't report a parseable confidence, a
 conservative default (0.3) is used and noted in `limitations`.
 
+**`usage` (added 2026-10-10)**: on the wire, every agent reply (Finding, Evidence
+Agent `{hypotheses}`, Critic critique, Recovery `{recovery_plan}`) also carries
+`"usage": {"llm_calls", "prompt_tokens", "completion_tokens", "total_tokens"}` —
+the real model usage that task incurred (`agents/common/usage_tally.py`). It is
+bookkeeping, not evidence: `orchestrator/investigation.py` pops it before the reply
+is stored or forwarded. The orchestrator aggregates it into the incident's
+`token_usage`:
+
+```json
+{
+  "measured_by": "NEXUS, from the model usage each agent reported",
+  "total": {"llm_calls": 12, "prompt_tokens": 30000, "completion_tokens": 2000, "total_tokens": 32000},
+  "by_agent": {"metrics_agent": {"llm_calls": 2, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0, "tasks": 1}},
+  "unmeasured_tasks": 0,
+  "limits": {"max_llm_calls": 60, "max_total_tokens": 250000, "max_tokens_per_agent": 80000},
+  "budget_exceeded": null
+}
+```
+
+(numbers illustrative). `budget_exceeded` is a reason string once a limit is
+reached, at which point the investigation abstains. Provider quota is not part of it.
+
 ## Hypothesis schema — implemented (Phase 6), `agents/evidence/agent.py`
 
 Produced by the Evidence Agent's `build_hypotheses()` from the diagnostic
@@ -396,3 +421,19 @@ root CLAUDE.md section 8/14) — the loop can only ever end in `DIAGNOSED` or
 `ABSTAINED`, never left hanging or forced to a diagnosis. See
 `orchestrator/CLAUDE.md` for the exact per-verdict transitions and
 `docs/EVENT_SCHEMA.md` for every event type this loop emits.
+
+
+## Simulated shop additions (2026-10-12): storefront, catalog, checkout
+
+```text
+GET  /shop        HTML storefront (production/storefront.html) -- for people, not agents
+GET  /products    {"products": [{"id","name","price","emoji","blurb"}, ...]}   static, not DB-backed
+POST /orders      {"customer": str(1-40), "items": [{"product_id": int, "quantity": 1-10}] (1-10 items)}
+                  -> 201 {"order": {id, customer, amount, status, created_at}, "items": [...]}
+                  400 unknown product_id, 422 invalid body. Amount is computed from the catalog; any
+                  client-supplied price is ignored.
+```
+`POST /orders` goes through the same fault checks as `GET /orders` (config_error -> deterministic 500,
+bad_deployment -> ~35% 500) and the same database path (db_slowdown adds ~0.25 s to the INSERT, and the
+INSERT appears in `/db/diagnostics` `recent_queries`/`query_summary`). All of these requests are recorded as
+ordinary customer traffic in `/metrics`, `/logs`, `/traces`; `/admin/*` still is not.

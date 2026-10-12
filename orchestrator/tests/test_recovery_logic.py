@@ -203,3 +203,44 @@ async def test_verification_failure_after_successful_execution_is_not_resolved(f
     assert result["outcome"] == "VERIFICATION_FAILED"
     assert result["verification"]["verified"] is False
     assert fake_backend.incident["status"] == "DIAGNOSED"
+
+
+@pytest.mark.asyncio
+async def test_late_approval_resumes_the_saved_plan_and_verifies(fake_backend, monkeypatch):
+    fake_backend.incident.update(
+        recovery_plan=dict(VALID_PLAN), approval_state={"decision": "APPROVED", "approved_by": "deepu", "late": True}, agent_findings={}
+    )
+    monkeypatch.setattr(recovery, "_probe_service", lambda: {"healthy": True, "per_path": {}})
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        return {"response": {"evidence": []}, "task_id": "t", "context_id": "c"}
+
+    monkeypatch.setattr(recovery, "call_remote_agent", fake_call_remote_agent)
+    ran = []
+    monkeypatch.setattr(
+        recovery.guardrails_executor,
+        "execute_plan",
+        lambda plan: ran.append(plan) or {"plan_id": plan["plan_id"], "action_history": [], "all_succeeded": True, "kill_switch_engaged": False},
+    )
+
+    result = await recovery.resume_approved_recovery("INC-fake")
+
+    assert result["outcome"] == "RESOLVED" and len(ran) == 1
+    assert fake_backend.incident["status"] == "RESOLVED"
+    assert "SAFETY_VALIDATION" in [e["event_type"] for e in fake_backend.events]  # re-validated, not trusted
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("approval", [None, {"decision": "EXPIRED"}, {"decision": "REJECTED"}, {"decision": "PENDING"}])
+async def test_resume_never_executes_without_a_real_human_approval(fake_backend, monkeypatch, approval):
+    fake_backend.incident.update(recovery_plan=dict(VALID_PLAN), approval_state=approval)
+    monkeypatch.setattr(recovery.guardrails_executor, "execute_plan", lambda plan: (_ for _ in ()).throw(AssertionError("must not run")))
+    assert (await recovery.resume_approved_recovery("INC-fake"))["outcome"] == "NOTHING_TO_RESUME"
+
+
+@pytest.mark.asyncio
+async def test_resume_revalidates_and_refuses_a_plan_that_no_longer_passes(fake_backend, monkeypatch):
+    bad = dict(VALID_PLAN, actions=[{"action": "delete_database", "params": {}}])
+    fake_backend.incident.update(recovery_plan=bad, approval_state={"decision": "APPROVED"}, agent_findings={})
+    monkeypatch.setattr(recovery.guardrails_executor, "execute_plan", lambda plan: (_ for _ in ()).throw(AssertionError("must not run")))
+    assert (await recovery.resume_approved_recovery("INC-fake"))["outcome"] == "REJECTED_BY_SAFETY_VALIDATION"

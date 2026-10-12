@@ -67,7 +67,7 @@ INSTRUCTION = (
     "\"HIGH\" -- be conservative, prefer LOW/MEDIUM), \"blast_radius\" (a short "
     "string describing what this plan could affect if it goes wrong), and "
     "\"rollback_plan\" (a short string describing how to undo this plan if it "
-    "makes things worse). NEVER propose an action outside the exact list "
+    "makes things worse). If the input has a \"remedy_guidance\" array, each entry names a symptom the evidence shows and the actions guardrails know fix it: choose your action from those unless the evidence clearly shows a different cause. NEVER propose an action outside the exact list "
     "given above -- there is no other action available. Choose actions that "
     "plausibly address the hypothesis' stated root cause using only the real "
     "evidence already given to you. Match the action to the SYMPTOM using the "
@@ -181,7 +181,7 @@ class RecoveryAgent:
 
         raw = await self._reasoner.investigate(question)
         plan = build_recovery_plan(hypothesis, critique, raw.get("parsed"))
-        return {"recovery_plan": plan}
+        return {"recovery_plan": plan, "usage": raw.get("usage")}
 
 
 recovery_agent = RecoveryAgent()

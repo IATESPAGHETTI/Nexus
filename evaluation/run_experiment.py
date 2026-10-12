@@ -67,7 +67,7 @@ async def _run_full_nexus(description: str, skip_critic: bool) -> dict:
         "abstained": abstained,
         "latency_seconds": round(latency, 3),
         "tool_calls": tool_calls,
-        "token_cost": "Unavailable from provider",  # root CLAUDE.md section 8 -- never fabricated
+        "token_cost": scoring.token_cost(incident),  # measured, else "Unavailable from provider" (root CLAUDE.md section 8)
     }
 
 

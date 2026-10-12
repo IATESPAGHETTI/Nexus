@@ -302,3 +302,15 @@
   font-weight: 600;
 }
 .cancelBtn:hover { background: var(--nx-neutral-bg); }
+
+.shopLink {
+  margin-left: 0.9rem;
+  font-size: 0.85rem;
+  font-weight: 500;
+  color: var(--nx-ink-2);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--nx-border-hairline-strong);
+  white-space: nowrap;
+}
+.shopLink:hover { color: var(--nx-ink-1); text-decoration-color: currentColor; }

@@ -1,29 +1,82 @@
-"""In-memory incident state + event store (Phase 6).
+"""Durable incident state + event store (Phase 6; SQLite-backed since the
+persistence pass).
 
-Thread-safe, same ring-buffer-free dict+Lock pattern as
-`production/observability.py`. This IS the NEXUS event bus contract from
-`docs/EVENT_SCHEMA.md` and the incident-state field set from root CLAUDE.md
-section 15 -- not a placeholder. No business logic lives here (backend/CLAUDE.md
+This IS the NEXUS event bus contract from `docs/EVENT_SCHEMA.md` and the
+incident-state field set from root CLAUDE.md section 15 ("Incident state must
+be explicit and persistent"). Incidents and events are kept in a SQLite file so
+they survive a backend restart. No business logic lives here (backend/CLAUDE.md
 "no business logic here beyond persistence/serving"): callers (orchestrator/)
 decide what to persist and when; this module only stores and returns it
 exactly as given.
+
+Where the data lives -- `NEXUS_DB_PATH`:
+  - unset            -> `backend/.data/nexus.db` (gitignored)
+  - a file path      -> that file (docker-compose points it at a named volume)
+  - `:memory:`       -> in-process only, used by the test suite
+The public functions are unchanged from the earlier in-memory version, so
+`app/main.py` did not need to change.
+
+An incident is stored as one JSON document (same shape as before); events are
+rows ordered by an auto-increment sequence, which also provides the global
+`evt-N` ids the dashboard sorts by.
 """
 
 from __future__ import annotations
 
+import json
+import os
+import sqlite3
 import time
 import uuid
+from pathlib import Path
 from threading import Lock
 from typing import Any
 
+_DEFAULT_DB_PATH = Path(__file__).resolve().parents[1] / ".data" / "nexus.db"
+
 _lock = Lock()
-_incidents: dict[str, dict[str, Any]] = {}
-_events: dict[str, list[dict[str, Any]]] = {}
-_event_seq = 0
+_conn: sqlite3.Connection | None = None
+
+
+def _db_path() -> str:
+    return os.environ.get("NEXUS_DB_PATH") or str(_DEFAULT_DB_PATH)
+
+
+def _connection() -> sqlite3.Connection:
+    """Lazily opens the database; callers must already hold `_lock`."""
+    global _conn
+    if _conn is None:
+        path = _db_path()
+        if path != ":memory:":
+            Path(path).parent.mkdir(parents=True, exist_ok=True)
+        conn = sqlite3.connect(path, check_same_thread=False)
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS incidents (incident_id TEXT PRIMARY KEY, data TEXT NOT NULL)"
+        )
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS events ("
+            "seq INTEGER PRIMARY KEY AUTOINCREMENT, incident_id TEXT NOT NULL, data TEXT NOT NULL)"
+        )
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_events_incident ON events (incident_id, seq)")
+        conn.commit()
+        _conn = conn
+    return _conn
 
 
 def _now() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _load(conn: sqlite3.Connection, incident_id: str) -> dict[str, Any] | None:
+    row = conn.execute("SELECT data FROM incidents WHERE incident_id = ?", (incident_id,)).fetchone()
+    return json.loads(row[0]) if row else None
+
+
+def _save(conn: sqlite3.Connection, incident: dict[str, Any]) -> None:
+    conn.execute(
+        "UPDATE incidents SET data = ? WHERE incident_id = ?",
+        (json.dumps(incident), incident["incident_id"]),
+    )
 
 
 def create_incident(description: str) -> dict:
@@ -48,25 +101,30 @@ def create_incident(description: str) -> dict:
         "decision": None,
     }
     with _lock:
-        _incidents[incident_id] = incident
-        _events[incident_id] = []
-    return dict(incident)
+        conn = _connection()
+        conn.execute(
+            "INSERT INTO incidents (incident_id, data) VALUES (?, ?)", (incident_id, json.dumps(incident))
+        )
+        conn.commit()
+    return incident
 
 
 def get_incident(incident_id: str) -> dict | None:
     with _lock:
-        incident = _incidents.get(incident_id)
-        return dict(incident) if incident is not None else None
+        return _load(_connection(), incident_id)
 
 
 def update_incident(incident_id: str, fields: dict) -> dict | None:
     with _lock:
-        incident = _incidents.get(incident_id)
+        conn = _connection()
+        incident = _load(conn, incident_id)
         if incident is None:
             return None
         incident.update(fields)
         incident["updated_at"] = _now()
-        return dict(incident)
+        _save(conn, incident)
+        conn.commit()
+        return incident
 
 
 def append_event(
@@ -77,13 +135,16 @@ def append_event(
     status: str | None,
     payload: dict | None,
 ) -> dict | None:
-    global _event_seq
     with _lock:
-        if incident_id not in _incidents:
+        conn = _connection()
+        incident = _load(conn, incident_id)
+        if incident is None:
             return None
-        _event_seq += 1
+        # The row's auto-increment sequence is the event's global ordering and
+        # its `evt-N` id, so reserve the row first and fill in its data.
+        cursor = conn.execute("INSERT INTO events (incident_id, data) VALUES (?, '')", (incident_id,))
         event = {
-            "event_id": f"evt-{_event_seq}",
+            "event_id": f"evt-{cursor.lastrowid}",
             "incident_id": incident_id,
             "timestamp": _now(),
             "event_type": event_type,
@@ -92,8 +153,8 @@ def append_event(
             "status": status,
             "payload": payload or {},
         }
-        _events[incident_id].append(event)
-        _incidents[incident_id]["timeline"].append(
+        conn.execute("UPDATE events SET data = ? WHERE seq = ?", (json.dumps(event), cursor.lastrowid))
+        incident["timeline"].append(
             {
                 "event_id": event["event_id"],
                 "timestamp": event["timestamp"],
@@ -102,19 +163,38 @@ def append_event(
                 "target": target,
             }
         )
-        _incidents[incident_id]["updated_at"] = event["timestamp"]
-        return dict(event)
+        incident["updated_at"] = event["timestamp"]
+        _save(conn, incident)
+        conn.commit()
+        return event
 
 
 def list_events(incident_id: str) -> list[dict] | None:
     with _lock:
-        if incident_id not in _incidents:
+        conn = _connection()
+        if _load(conn, incident_id) is None:
             return None
-        return [dict(e) for e in _events[incident_id]]
+        rows = conn.execute("SELECT data FROM events WHERE incident_id = ? ORDER BY seq", (incident_id,)).fetchall()
+        return [json.loads(row[0]) for row in rows]
+
+
+def close() -> None:
+    """Closes the connection so the next call reopens `NEXUS_DB_PATH`. Used by
+    tests to simulate a backend restart; harmless otherwise."""
+    global _conn
+    with _lock:
+        if _conn is not None:
+            _conn.close()
+            _conn = None
 
 
 def clear() -> None:
-    """Test-only reset. Not exposed over HTTP."""
+    """Test-only reset. Not exposed over HTTP, and refuses to run against a
+    file-backed database so a stray test can never wipe real incidents."""
+    if _db_path() != ":memory:":
+        raise RuntimeError("incident_store.clear() is test-only and only runs with NEXUS_DB_PATH=:memory:")
     with _lock:
-        _incidents.clear()
-        _events.clear()
+        conn = _connection()
+        conn.execute("DELETE FROM events")
+        conn.execute("DELETE FROM incidents")
+        conn.commit()

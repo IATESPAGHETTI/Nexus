@@ -41,6 +41,14 @@ token cost (reported as `Unavailable from provider` unless Groq returns a
 provider value; no quota or token number is inferred)
 ```
 
+Token cost note: each investigation records measured model usage in
+`incident.token_usage` (see `docs/API_CONTRACT.md`). `evaluation/run_experiment.py`
+now copies it into each full-NEXUS / no-critic run's `token_cost` (calls, tokens, and
+`unmeasured_tasks`; a lower bound if > 0) and `aggregate()` averages it over runs that
+have it. With no recorded usage it stays `Unavailable from provider`. The single-agent
+baseline does not report usage yet, so it has no token number. Not yet exercised by a
+live run.
+
 ## Status
 
 Phase 9's fault scenarios, injector, three-arm benchmark runner, and pure

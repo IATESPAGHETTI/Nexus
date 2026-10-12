@@ -157,14 +157,20 @@ over A2A by `agents/common/a2a_server.py`, which also publishes a real Agent Car
   because rate limits made all 4 diagnostic agents fail (honestly reported as such).
 - **Docker Compose** runs only `backend` + `production`; A2A services and dashboard run
   as local processes.
-- LLM usage/quota panel shows "Unavailable from provider" — no usage metadata is
-  plumbed through the pipeline yet.
+- LLM usage panel (updated 2026-10-10): per-incident model calls/tokens are now
+  measured from what each agent reports and shown against NEXUS's own spending
+  limits (`orchestrator/budget.py`); the provider's remaining quota is still
+  "Unavailable from provider". Not yet counted: Recovery Agent and post-fix
+  verification calls. Not yet exercised against a live model (no working key).
+- Incidents are now saved to a SQLite file and survive a backend restart (verified
+  with a real server restart; Docker volume config validated but not run).
 - The git tree has many uncommitted changes on top of a single initial commit
   (`c8b2327`).
 
-Last recorded deterministic test counts (see PROJECT_STATE for detail): backend +
-production 29, MCP 22, fast agents 27, orchestrator + guardrails 27, fault injection 7,
-evaluation 16.
+Last recorded deterministic test counts (see PROJECT_STATE for detail), re-run
+2026-10-10: backend + production 35, fast agents 32, orchestrator 40 (+ guardrails 14),
+evaluation 16, fault-injection scenarios 5 (pure tests). MCP (22) and the live
+fault-injection tests were not re-run in that pass.
 
 ## 6. How to run it
 

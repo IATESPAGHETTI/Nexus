@@ -195,6 +195,14 @@ export function LiveIncidentCommandCenter() {
                     {run.isPending ? "Running demo…" : inProgress ? "Investigation in progress" : "Inject Database Slowdown"}
                   </button>
                 )}
+                <a
+                  href="http://localhost:8001/shop"
+                  target="_blank"
+                  rel="noreferrer"
+                  className={styles.shopLink}
+                >
+                  Open the simulated shop ↗
+                </a>
               </div>
             </div>
 
@@ -209,7 +217,7 @@ export function LiveIncidentCommandCenter() {
                 </div>
                 <p className={styles.emptyText}>
                   {incidentMissing
-                    ? "The backend was probably restarted (incident state is held in memory). Start a new one above."
+                    ? "The backend does not know that incident id (it may belong to a different database). Start a new one above."
                     : "Nothing has been reported. Use “Inject Database Slowdown” to create a real incident, or open one from the Incidents page."}
                 </p>
               </div>

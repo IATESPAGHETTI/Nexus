@@ -133,6 +133,26 @@ export interface ActionHistoryEntry {
   timestamp: string;
 }
 
+// orchestrator/budget.py's IncidentBudget.snapshot(): model usage as reported by
+// the agents themselves (not provider quota). Empty `{}` until the first agent
+// answers, and for incidents created before usage tracking existed.
+export interface UsageCounts {
+  llm_calls: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+  total_tokens: number;
+  tasks?: number;
+}
+
+export interface TokenUsage {
+  measured_by?: string;
+  total?: UsageCounts;
+  by_agent?: Record<string, UsageCounts>;
+  unmeasured_tasks?: number;
+  limits?: { max_llm_calls: number; max_total_tokens: number; max_tokens_per_agent: number };
+  budget_exceeded?: string | null;
+}
+
 export interface IncidentState {
   incident_id: string;
   description: string;
@@ -149,7 +169,7 @@ export interface IncidentState {
   recovery_plan: RecoveryPlan | null;
   approval_state: ApprovalState | null;
   action_history: ActionHistoryEntry[];
-  token_usage: Record<string, unknown>;
+  token_usage: TokenUsage;
   decision: Decision | null;
 }
 

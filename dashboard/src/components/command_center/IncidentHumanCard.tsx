@@ -124,9 +124,15 @@ function ApprovalBanner({ model, incident }: { model: CommandCenterModel; incide
         <div>
           <div className={styles.approvalTitle}>APPROVAL WINDOW CLOSED. NOTHING WAS EXECUTED</div>
           <p className={styles.approvalText}>
-            NEXUS stopped waiting for a decision, so this plan can no longer run. Approving it now would do nothing.
-            Start the demo again to get a fresh plan.
+            NEXUS stopped waiting, so nothing ran. The plan is saved: if you approve it now, NEXUS re-checks it against the
+            safety rules, runs it, and measures the live service again.
           </p>
+          {decide.isError && <span className={styles.errorNote}>Could not record the decision: {String(decide.error)}</span>}
+        </div>
+        <div className={styles.approvalBtns}>
+          <button type="button" className={styles.approveBtn} disabled={decide.isPending} onClick={() => decide.mutate("APPROVED")}>
+            APPROVE SAVED PLAN
+          </button>
         </div>
       </div>
     );
@@ -286,7 +292,7 @@ function RecoveryBlock({ model, incident }: { model: CommandCenterModel; inciden
       {rec.stage === "DECLINED" && <p className={styles.decisionText}>The operator declined this plan. No action was taken.</p>}
       {rec.stage === "EXPIRED" && (
         <p className={styles.decisionText}>
-          NEXUS stopped waiting for a decision, so nothing was executed and this plan can no longer run.
+          NEXUS stopped waiting for a decision, so nothing was executed. The plan is saved and can still be approved.
         </p>
       )}
 
@@ -299,7 +305,7 @@ function RecoveryBlock({ model, incident }: { model: CommandCenterModel; inciden
                 i === idx ? (failed ? styles.stageFailed : styles.stageCurrent) : ""
               }`}
             >
-              {s.label}
+              {s.label === "Recovered" && rec.stage === "VERIFICATION_FAILED" ? "Not recovered" : s.label}
             </li>
           ))}
         </ol>

@@ -239,6 +239,10 @@
   background: #343434;
   display: inline-block;
 }
+/* window-control dots: the same red / amber / green as the comparison windows (Compare.module.css) */
+.dots i:nth-child(1) { background: #ff5f57; }
+.dots i:nth-child(2) { background: #febc2e; }
+.dots i:nth-child(3) { background: #28c840; }
 .frameTitle {
   flex: 1;
 }
