@@ -16,6 +16,8 @@ def _fake(monkeypatch, up):
     monkeypatch.setattr(demo, "check_agents", lambda: {n: n in up for n in demo.AGENT_PORTS})
     monkeypatch.setattr(demo.subprocess, "Popen", lambda cmd, **kw: launched.append(cmd[1]))
     monkeypatch.setattr(demo, "_spawned_at", {})
+    # The real agents venv only exists on a developer machine, not on a CI runner.
+    monkeypatch.setattr(demo, "AGENTS_PYTHON", Path(sys.executable))
     return launched
 
 

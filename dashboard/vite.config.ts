@@ -1,6 +1,9 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 
+// Only `process.env` is used here; declared locally so the build does not depend on @types/node being installed.
+declare const process: { env: Record<string, string | undefined> }
+
 // NEXUS dashboard — pure renderer of backend/ state (see dashboard/CLAUDE.md).
 // Proxies /api to the FastAPI backend so the dev server and backend/ stay on
 // separate processes/ports, matching the rest of NEXUS's process isolation.
