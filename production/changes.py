@@ -65,3 +65,9 @@ def append(change_type: str, version: str, description: str, author: str = "nexu
     with _lock:
         CHANGE_HISTORY.append(entry)
     return entry
+
+
+def reset() -> None:
+    """Back to the three seed entries (demo/test reset): drops changes added by earlier faults and recoveries."""
+    with _lock:
+        del CHANGE_HISTORY[3:]

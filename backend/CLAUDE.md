@@ -69,3 +69,6 @@ decision value + 404 on an unknown incident (Phase 8).
 
 ## Usually don't touch
 `production/` (separate service, simulated target system)
+
+## 2026-10-13
+- `POST /demo/reset-shop` (`demo.reset_shop`) proxies the shop's `/admin/reset`.

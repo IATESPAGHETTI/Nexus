@@ -115,3 +115,12 @@ packages cannot break another's.
 - [docs/EVALUATION.md](docs/EVALUATION.md)
 - [docs/DEMO_RUNBOOK.md](docs/DEMO_RUNBOOK.md)
 - [docs/PROJECT_STATE.md](docs/PROJECT_STATE.md)
+
+## Latest (2026-10-13)
+
+- Five demo failures (slow database, bad release, wrong setting, payment service down, out of memory), chosen in the
+  dashboard; the Incident Manager calls only the agents the symptom points at (`orchestrator/triage.py`).
+- The live section shows an animated agent flow map, an "Agent conversation" panel (every request and callback) and an
+  "In plain English" box. The presentation page has "What we break on purpose" and "What testing taught us" sections.
+- Shop logs carry error messages; `POST /admin/reset` gives a clean shop. See `docs/PROJECT_STATE.md` for what was fixed
+  and the honest limits (single runs, not a benchmark).

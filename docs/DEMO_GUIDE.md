@@ -53,7 +53,8 @@ Wait about 20–30 seconds until it says **Live Connected (7/7)**.
 *Say:* "Seven AI agents, each its own separate program. They talk to each other over a real
 agent-to-agent protocol, and they only read the shop through approved diagnostic tools."
 
-**Step 3: break the shop.** In the dashboard click **Inject Database Slowdown** and confirm.
+**Step 3: break the shop.** In the dashboard pick a failure (Slow database, Bad release, Wrong setting, Payment service
+down, Out of memory), click **Inject: ...** and confirm. NEXUS first resets the shop to a clean state.
 (It makes roughly 10–30 paid AI calls.)
 Switch to the shop window. Within a few seconds the badge turns **Slow** and the bars jump to about 260 ms.
 *Say:* "I just made every database query slower. Nothing says why. The agents have to find out."
@@ -62,7 +63,8 @@ amber. (Browsing the product grid stays fast, because the catalog isn't stored i
 database-backed parts slow down, like many real shops.)
 
 **Step 4: watch the investigation (about 45–60 seconds).** On the dashboard watch the stages tick down:
-1. **Gather evidence:** four specialists report (speed and errors, logs, recent changes, database).
+1. **Gather evidence:** the Incident Manager calls only the specialists the complaint points at (2 to 4 of: speed and
+   errors, logs, recent changes, database). Skipped agents show as "not called" with the reason.
 2. **Form possible causes:** a ranked list with confidence.
 3. **Challenge:** the Critic tries to knock the top cause down. It may ask for more evidence and send the
    team back for a second round. That is the loop working.
@@ -92,7 +94,8 @@ and tokens this investigation used, against the spending limits. Mention that NE
 | Ends **abstained** ("not enough evidence") | Normal sometimes. Click **Inject** again (the shop resets between runs if you clear it). |
 | Fix says **not verified** | Honest outcome: the action ran but the shop is still slow. Say so, then clear it (below). |
 | "Approval window closed" | Click **Approve saved plan**: it resumes the saved plan. |
-| Shop still slow after the demo | Reset it: `curl -X POST http://localhost:8001/admin/fault/clear` |
+| Shop still broken after the demo | Click Inject again (it resets first) or: `curl -X POST http://127.0.0.1:8001/admin/reset` |
+| Results look odd after many runs | The shop keeps history of earlier incidents. Reset it (above); old errors look like evidence. |
 | Dashboard blank page | Hard refresh. Two dev servers sharing one `node_modules` can clash. |
 
 ## 5. Questions your teacher may ask
@@ -116,3 +119,22 @@ and tokens this investigation used, against the spending limits. Mention that NE
 - The agents are real AI, so outcomes vary: in practice most runs diagnose the slow database and propose
   the right fix, but some end in an honest "not enough evidence". If that happens, just run it again.
   (The code-history tool that could leak the answer is disabled.)
+
+## Which failure to pick
+
+| Button | What breaks | Fix NEXUS proposes |
+|---|---|---|
+| Slow database | order lookups take about 260 ms | restore resources |
+| Bad release | a new version fails some orders | roll back |
+| Wrong setting | an invalid setting fails every order | reset config |
+| Payment service down | single-order lookups hang then fail | restart |
+| Out of memory | the whole shop slows and refuses some requests | restore resources or restart |
+
+In practice runs (one each, not a benchmark) all five were diagnosed, fixed and verified, but the AI is not
+deterministic: if one ends "abstained", click Inject again.
+
+## Showing the shop on a phone (same Wi-Fi)
+
+Run the shop on `0.0.0.0` (`uvicorn service:app --app-dir production --port 8001 --host 0.0.0.0`), allow TCP 8001 in
+Windows Firewall for the Private profile, then open `http://<laptop-ip>:8001/shop`. Use your own network: the shop's
+control endpoints become reachable to anyone on it.

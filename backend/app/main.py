@@ -50,6 +50,15 @@ def demo_stop_agents() -> dict:
     return demo.stop_agents()
 
 
+@app.post("/demo/reset-shop")
+def demo_reset_shop() -> dict:
+    """Clean slate for the next demo: clears injected faults and the shop's history of earlier incidents."""
+    try:
+        return demo.reset_shop()
+    except demo.ProductionUnavailableError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
 class InjectFailureRequest(BaseModel):
     fault_type: str = "bad_deployment"
     description: str = "orders endpoint intermittently failing"

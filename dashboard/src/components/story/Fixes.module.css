@@ -1,0 +1,91 @@
+.section {
+  padding: var(--lt-section-y) 0;
+  border-top: 1px solid var(--lt-border);
+  background: var(--lt-bg);
+}
+.container {
+  width: 100%;
+  max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
+  margin: 0 auto;
+  padding: 0 var(--lt-pad-x);
+}
+.title {
+  max-width: 52rem;
+  margin-bottom: 1.25rem;
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+  font-weight: 500;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+  color: var(--lt-ink);
+}
+.title span { color: var(--lt-ink-3); font-weight: 300; }
+.lead {
+  max-width: 44rem;
+  margin: 0 0 2.5rem;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--lt-ink-2);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem;
+}
+@media (max-width: 800px) { .grid { grid-template-columns: 1fr; } }
+
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+  padding: 1.4rem;
+  background: var(--lt-bg-alt);
+  border: 1px solid var(--lt-border);
+  border-radius: var(--lt-radius-md);
+}
+.cardTop { display: flex; align-items: center; justify-content: space-between; }
+.num {
+  font-family: var(--nx-font-mono);
+  font-size: 0.8rem;
+  color: var(--lt-brand);
+}
+.tag {
+  font-family: var(--nx-font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid var(--lt-border);
+  color: var(--lt-ink-3);
+}
+.row p { margin: 4px 0 0; font-size: 0.95rem; line-height: 1.55; color: var(--lt-ink-2); }
+.label {
+  font-family: var(--nx-font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lt-ink-3);
+}
+.fixRow {
+  padding: 0.75rem 0.9rem;
+  border-radius: 12px;
+  background: rgba(31, 157, 87, 0.08);
+  border: 1px solid rgba(31, 157, 87, 0.25);
+}
+.fixRow .label { color: #157a3c; }
+.fixRow p { color: var(--lt-ink); }
+
+.note {
+  margin-top: 1.25rem;
+  padding: 1.1rem 1.3rem;
+  border-radius: var(--lt-radius-md);
+  background: var(--lt-bg-alt);
+  border: 1px solid var(--lt-border);
+  border-left: 3px solid var(--lt-brand);
+  font-size: 0.95rem;
+  line-height: 1.6;
+  color: var(--lt-ink-2);
+}
+.note b { color: var(--lt-ink); font-weight: 600; }

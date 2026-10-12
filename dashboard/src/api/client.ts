@@ -109,10 +109,14 @@ export interface InvestigateResult {
 // they record is real, not fabricated.
 export async function sendCustomerRequests(count: number): Promise<{ ok: number; failed: number }> {
   const results = await Promise.allSettled(
-    Array.from({ length: count }, () => fetch("/production/orders").then((r) => r.ok)),
+    Array.from({ length: count }, (_, i) => fetch(i % 3 === 2 ? "/production/orders/1" : "/production/orders").then((r) => r.ok)),
   );
   const ok = results.filter((r) => r.status === "fulfilled" && r.value).length;
   return { ok, failed: count - ok };
+}
+
+export function resetShop(): Promise<unknown> {
+  return postJson<unknown>("/demo/reset-shop", {});
 }
 
 export function injectControlledFailure(

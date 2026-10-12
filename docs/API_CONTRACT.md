@@ -137,12 +137,18 @@ diagnostic/evidence/critic/recovery agent calls them directly.
 ```text
 GET  /admin/state                                real current fault-state snapshot
 POST /admin/fault/inject   {"fault_type", "bad_version"?}   fault_injection/ only
-POST /admin/fault/clear                          fault_injection/ only (also test/demo reset)
+POST /admin/fault/clear                          fault_injection/ only (faults only)
+POST /admin/reset                                demo/test reset: clears faults AND the shop's history of earlier incidents
+                                                 (metrics, logs, traces, queries, extra change entries, orders above id 10)
 POST /admin/recovery/restart_service             guardrails/ only
 POST /admin/recovery/rollback_deployment {"target_version"} guardrails/ only
 POST /admin/recovery/reset_config                guardrails/ only
 POST /admin/recovery/scale_resources             guardrails/ only
 ```
+
+**Log entries carry the app's error message (2026-10-13).** A 5xx entry from `GET /logs` has an extra
+`error` field with the exception text the app raised (for example `ConfigError: DB_POOL_SIZE must be > 0,
+got 0`). Healthy and 4xx entries have no `error` field. Without it no agent could tell why requests failed.
 
 `fault_type` is one of `production/state.py`'s `FAULT_TYPES`: `bad_deployment`,
 `db_slowdown`, `config_error`, `dependency_failure`, `resource_exhaustion` —
@@ -437,3 +443,12 @@ POST /orders      {"customer": str(1-40), "items": [{"product_id": int, "quantit
 bad_deployment -> ~35% 500) and the same database path (db_slowdown adds ~0.25 s to the INSERT, and the
 INSERT appears in `/db/diagnostics` `recent_queries`/`query_summary`). All of these requests are recorded as
 ordinary customer traffic in `/metrics`, `/logs`, `/traces`; `/admin/*` still is not.
+
+### Demo endpoints added 2026-10-13 (backend)
+
+```text
+POST /demo/reset-shop     proxies the shop's POST /admin/reset; the dashboard calls it before every injection
+POST /demo/investigate    {fault_type, description}; the description is the symptom the agents receive
+```
+The Incident Manager's triage reads that symptom text to choose which diagnostic agents to call (see
+`orchestrator/triage.py`), so different failures wake different agents.

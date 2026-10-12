@@ -170,3 +170,17 @@ switch** (ON) really starts the 7 agent services.
 | How it is graded | `docs/EVALUATION.md` |
 | Run the demo | `docs/DEMO_RUNBOOK.md` |
 | Current status | `docs/PROJECT_STATE.md` |
+
+## Update 2026-10-13: five failures, and not every agent is called
+
+- The demo can break the shop five ways: slow database, bad release, wrong setting, payment service down, out of memory.
+  NEXUS only hears a customer-style complaint, never the cause.
+- **Triage:** like an on-call lead choosing who to page, the Incident Manager calls only the specialists the complaint
+  points at. If the Critic later asks for something a skipped specialist covers, that specialist is called next round.
+- **Fixes it chooses between** (never code changes, only a fixed menu a person approves): restart, roll back to the
+  previous version, reset configuration, restore resources.
+- **What testing taught us:** the logs now record the real error message; a safety check rejects fixes that cannot
+  work; the Critic is told what evidence can exist; the Logs agent is capped at four tool calls; each demo starts from a
+  clean shop. All are listed on the presentation page under "What testing taught us".
+- **Honest limit:** each failure was run once after the fixes (all five fixed and verified). That is a smoke test, not a
+  benchmark.

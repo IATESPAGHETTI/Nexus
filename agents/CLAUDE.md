@@ -188,3 +188,9 @@ described above — this is an external quota, not a bug.
 ## Usually don't touch
 `backend/`, `production/`, `orchestrator/`, `mcp/` (separate verified components,
 separate venvs)
+
+## Prompt changes 2026-10-13
+- Critic: an EVIDENCE LIMITS paragraph (only metrics, logs with error text, request traces without child spans, change
+  history and DB stats can exist; do not ask for anything else; SUPPORTED when sources agree and nothing contradicts).
+- Logs & Traces: at most 4 tool calls, no repeated calls, quote error text exactly.
+- Tuned after failures on the five known scenarios; re-measure on held-out scenarios before claiming accuracy.

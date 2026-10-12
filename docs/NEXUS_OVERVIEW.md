@@ -218,3 +218,7 @@ Tests (per component, each in its own venv — see the local `CLAUDE.md`), e.g.:
 | Phase 10 plan | `NEXUS_PHASE10_PLAN.md` |
 | Per-component notes | `<component>/CLAUDE.md` |
 | Provider selection | `runtime_config.py` |
+
+## Update 2026-10-13
+
+The demo now has five injectable failures (slow database, bad release, wrong setting, payment service down, out of memory) and the Incident Manager calls only the specialist agents the complaint points at. In one practice run each after the fixes, all five were diagnosed, repaired and verified; this is a smoke test, not a benchmark (see `docs/PROJECT_STATE.md`).

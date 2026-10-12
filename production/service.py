@@ -3,14 +3,16 @@ import time
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.exception_handlers import http_exception_handler
 from fastapi.responses import HTMLResponse, JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from pydantic import BaseModel, Field
 
 import catalog
 import changes
 import db
 import state
-from observability import log_store, metrics_store, new_trace_id, now_iso, trace_store
+from observability import log_store, metrics_store, new_trace_id, now_iso, query_store, trace_store
 
 app = FastAPI(title="nexus-production-simulated")
 
@@ -30,17 +32,21 @@ def _record_request(request: Request, trace_id: str, status_code: int, duration_
     is_error = status_code >= 500
     endpoint = f"{request.method} {request.url.path}"
     metrics_store.record(endpoint, duration_ms, is_error)
-    log_store.add(
-        {
-            "timestamp": now_iso(),
-            "level": "ERROR" if is_error else "INFO",
-            "trace_id": trace_id,
-            "method": request.method,
-            "path": request.url.path,
-            "status_code": status_code,
-            "duration_ms": round(duration_ms, 2),
-        }
-    )
+    entry = {
+        "timestamp": now_iso(),
+        "level": "ERROR" if is_error else "INFO",
+        "trace_id": trace_id,
+        "method": request.method,
+        "path": request.url.path,
+        "status_code": status_code,
+        "duration_ms": round(duration_ms, 2),
+    }
+    # Like a real application log, a server error carries the exception message the
+    # app raised. Without it, no diagnostic agent could tell WHY requests fail.
+    error = getattr(request.state, "error_detail", None)
+    if is_error and error:
+        entry["error"] = error
+    log_store.add(entry)
     trace_store.add(
         {
             "trace_id": trace_id,
@@ -51,6 +57,12 @@ def _record_request(request: Request, trace_id: str, status_code: int, duration_
             "duration_ms": round(duration_ms, 2),
         }
     )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def remember_error_detail(request: Request, exc: StarletteHTTPException):
+    request.state.error_detail = str(exc.detail)
+    return await http_exception_handler(request, exc)
 
 
 @app.middleware("http")
@@ -67,6 +79,7 @@ async def observe_requests(request: Request, call_next):
         time.sleep(RESOURCE_EXHAUSTION_LATENCY_SECONDS)
         if random.random() < RESOURCE_EXHAUSTION_ERROR_RATE:
             duration_ms = (time.perf_counter() - start) * 1000
+            request.state.error_detail = "ResourceExhaustedError: memory limit exceeded"
             _record_request(request, trace_id, 500, duration_ms)
             response = JSONResponse(
                 status_code=500,
@@ -257,6 +270,23 @@ def admin_inject_fault(body: FaultInjectRequest) -> dict:
 @app.post("/admin/fault/clear")
 def admin_clear_fault() -> dict:
     return state.clear_all()
+
+
+@app.post("/admin/reset")
+def admin_reset() -> dict:
+    """Demo/test reset to a clean shop: no faults, no history of earlier incidents (metrics, logs,
+    traces, queries, change log) and only the 10 seed orders. Without this, leftovers from a previous
+    incident (old errors, old rollbacks) show up as misleading evidence in the next one."""
+    state.clear_all()
+    metrics_store.clear()
+    log_store.clear()
+    trace_store.clear()
+    query_store.clear()
+    changes.reset()
+    conn = db.get_connection()
+    conn.execute("DELETE FROM orders WHERE id > 10")
+    conn.commit()
+    return state.snapshot()
 
 
 @app.post("/admin/recovery/restart_service")

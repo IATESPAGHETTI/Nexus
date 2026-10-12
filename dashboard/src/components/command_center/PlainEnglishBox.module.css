@@ -1,0 +1,97 @@
+.box {
+  border: 1px solid rgba(111, 207, 151, 0.35);
+  background: linear-gradient(180deg, rgba(111, 207, 151, 0.08), rgba(111, 207, 151, 0.02));
+  border-radius: 18px;
+  padding: 22px 24px;
+  scroll-margin-top: 16px;
+}
+
+.kicker {
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: #157a3c;
+}
+
+.h {
+  margin: 6px 0 14px;
+  font-family: var(--nx-font-display);
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--nx-ink-1);
+}
+
+.story {
+  margin: 0 0 20px;
+  padding-left: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  font-size: 15px;
+  line-height: 1.65;
+  color: var(--nx-ink-2);
+}
+
+.story li::marker {
+  color: #2fae6a;
+  font-weight: 700;
+}
+
+.cols {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+}
+
+@media (max-width: 860px) {
+  .cols { grid-template-columns: 1fr; }
+}
+
+.glossBlock {
+  min-width: 0;
+}
+
+.glossTitle {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nx-ink-1);
+}
+
+.glossHint {
+  font-size: 12px;
+  color: var(--nx-ink-3);
+  margin: 2px 0 10px;
+}
+
+.gloss {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.glossItem {
+  border-left: 2px solid rgba(111, 207, 151, 0.45);
+  padding-left: 12px;
+}
+
+.glossItem dt {
+  font-family: var(--nx-font-mono);
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #157a3c;
+}
+
+.glossItem dd {
+  margin: 2px 0 0;
+  font-size: 13.5px;
+  line-height: 1.55;
+  color: var(--nx-ink-2);
+}
+
+.none {
+  margin: 14px 0 0;
+  font-size: 13px;
+  color: var(--nx-ink-3);
+}

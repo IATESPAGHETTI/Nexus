@@ -60,3 +60,12 @@ the Groq account's exhausted daily token quota (TPD 200000), not substituted
 with synthetic output. When quota headroom is available, start the full stack
 and run `.venv-orchestrator/Scripts/python evaluation/run_experiment.py`.
 Report the generated JSON as the only source for measured evaluation values.
+
+## Notes added 2026-10-13
+
+- **Triage changes what is measured.** `run_investigation` now calls only the diagnostic agents the symptom text points at
+  (`orchestrator/triage.py`). Set `NEXUS_TRIAGE=0`, or pass `agent_names`, to call all four. State which was used in any result.
+- **Reset between trials.** Use `POST /admin/reset` on the shop before every trial; leftovers from an earlier fault
+  (old errors, rollbacks) otherwise act as misleading evidence and invalidate the comparison.
+- **Tuning contamination.** The Critic and Logs-agent prompts were adjusted after seeing failures on the five existing
+  scenarios. Accuracy must be measured on scenarios not used for that tuning.

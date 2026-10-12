@@ -1,5 +1,46 @@
 # NEXUS Project State
 
+## Five failures, agent triage, live-section redesign (2026-10-13)
+- **Five injectable failures** in the dashboard (`dashboard/src/lib/scenarios.ts`): slow database, bad release, wrong setting,
+  payment service down, out of memory. Each sends only a customer-side symptom to the agents (blind-evaluation rule).
+- **Incident Manager triage** (`orchestrator/triage.py`, 5 tests): keyword rules over the symptom text (never the injected
+  fault) pick which diagnostic agents to call; Metrics is always first, at least 2 agents are used, and later rounds only
+  re-ask the agents the Critic's request points at. Emits `AGENTS_SELECTED`. `NEXUS_TRIAGE=0` calls all four (and passing
+  `agent_names` explicitly also bypasses it). NOTE: this changes which agents the benchmark calls; state it in any results.
+- **Found live**: for every failure except the slow database no agent could see WHY requests failed, because the error text
+  (`ConfigError: ...`) was only in HTTP response bodies, not the shop's logs. A "wrong setting" run guessed `restart_service`,
+  was approved, and the live check correctly failed (5/5 requests still failing). Fix: 5xx log entries now carry the app's
+  own error message (`production/service.py`, `tests/test_error_logging.py`); the remedy guardrail's text markers can now fire.
+- **Dashboard**: live section re-themed light (matches the site); animated agent flow map (packets, "waiting for reply"
+  dots, callback pulse); "Agent conversation" panel (every A2A request and its callback); "In plain English" box with a
+  glossary where technical words are explained only if they actually appear; skipped agents show as "not called" with the reason.
+- **End-to-end practice runs after the log fix (one each, NOT a benchmark, approvals made by the assistant as labelled tests)**:
+  bad release, wrong setting and payment service down were diagnosed, fixed (rollback / reset_config / restart) and verified
+  by the live check; slow database and out of memory ABSTAINED (the Critic would not call them proven). Triage picked
+  2-3 agents each time; the slow-database run widened to all four in round 2.
+- **Presentation page**: new "What we break on purpose" section (`components/story/FailuresSection.tsx`, nav pill "Failures")
+  describing the five failures, the clue, the fix and which agents were called first in the practice runs.
+- Tests: root 58, orchestrator/guardrails 56 (spot run), MCP 23, `tsc -b` clean.
+
+## Why runs abstained, and the fixes (2026-10-13)
+Three separate causes found by reading the abstained incidents, not by guessing:
+- **Dirty shop between trials**: the shop's metrics, logs and change history carried leftovers of earlier incidents (old error
+  spikes, old "1.2.0-bad" deployments and rollbacks), which the agents treated as contradicting evidence. Fix: `POST
+  /admin/reset` on the shop (clears faults, metrics, logs, traces, queries, extra change entries, extra orders; test in
+  `tests/test_reset.py`), `POST /demo/reset-shop` on the backend, and the dashboard's Inject flow now resets first.
+  Practice harness resets before every trial.
+- **Over-demanding Critic**: it kept asking for evidence no tool can return (the payment service's own health, network captures,
+  child spans), so it could never be satisfied. Its prompt now lists what evidence can ever exist and says to return SUPPORTED when
+  the evidence explains the symptoms, sources agree and nothing contradicts it.
+- **Runaway Logs agent**: one run spent 95k tokens (cap 80k) and the budget correctly stopped the incident before the Critic
+  could review good evidence. The Logs agent prompt now caps it at 4 tool calls and tells it to quote error text.
+- **Presentation page**: new "What testing taught us" section (`components/story/FixesSection.tsx`, nav pill "Fixes") lists 8 real problems found and how each was fixed (answer leak, invisible error text, wrong fix, false "not verified", impossible Critic asks, runaway cost, dirty test shop, lost incidents), with an honest note that results are single runs.
+- Result on a clean shop, ONE run each, NOT a benchmark: all five (slow database, bad release, wrong setting, payment service
+  down, out of memory) were diagnosed, fixed and verified by the live check. Caveat: the two prompt changes were made after
+  seeing failures on these same five scenarios, so they must be re-measured on held-out scenarios before any accuracy claim.
+  The out-of-memory plan was `restart_service` + `rollback_deployment`; the rollback was unnecessary (guardrail only blocks
+  actions that cannot fix the symptom, not extra ones).
+
 ## Leak closed, verification bug fixed, full loop verified live (2026-10-12)
 - **Answer leak closed**: `get_git_diff` is now DISABLED by default (`NEXUS_ENABLE_GIT_DIFF=1` to enable) because the repo's
   own history holds the simulator's fault code and docs; the Change Analysis Agent uses only `get_recent_deployments`.

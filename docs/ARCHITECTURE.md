@@ -78,3 +78,8 @@ missing-code issue — see `docs/PROJECT_STATE.md` "Blockers"). See
 `NEXUS_PHASE10_PLAN.md` for the current Phase 10 integration/demo/packaging
 work and `docs/PROJECT_STATE.md` for the authoritative, continuously updated
 project state.
+
+## Update 2026-10-13: triage and clean-slate resets
+
+- The Incident Manager no longer always dispatches to all four diagnostic agents. `orchestrator/triage.py` picks them from the symptom text (never the injected fault); later rounds re-ask only the agents the Critic's request points at. Each round emits `AGENTS_SELECTED`.
+- The simulated shop has `POST /admin/reset` (clean slate) and its 5xx log entries carry the app's error message. Both exist so evidence reflects only the current incident and shows why requests fail.

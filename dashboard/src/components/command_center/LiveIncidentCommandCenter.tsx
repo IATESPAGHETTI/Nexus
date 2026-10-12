@@ -2,16 +2,13 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useAgentControl } from "../../context/AgentControlContext";
 import { useActiveIncident } from "../../api/useActiveIncident";
-import { injectControlledFailure, sendCustomerRequests, type InvestigateResult } from "../../api/client";
+import { injectControlledFailure, resetShop, sendCustomerRequests, type InvestigateResult } from "../../api/client";
 import { countEvents } from "../../lib/presentation";
 import { IncidentHumanCard } from "./IncidentHumanCard";
 import { SEVEN_QUESTIONS } from "./sevenQuestions";
 import styles from "./LiveIncidentCommandCenter.module.css";
 
-// Symptom-only description: it is handed to the agents as the investigation
-// prompt, so it must not name the root cause (fault_injection blind-eval rule).
-const DEMO_FAULT_TYPE = "db_slowdown";
-const DEMO_SYMPTOM = "Customers report that order requests are responding slowly. Investigate the cause.";
+import { DEMO_SCENARIOS, scenarioById } from "../../lib/scenarios";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -20,6 +17,8 @@ export function LiveIncidentCommandCenter() {
   const { live, incident, events, model, incidentMissing, isLoading } = useActiveIncident();
   const [step, setStep] = useState<string | null>(null);
   const [confirming, setConfirming] = useState(false);
+  const [scenarioId, setScenarioId] = useState(DEMO_SCENARIOS[0].id);
+  const scenario = scenarioById(scenarioId);
 
   const productionUp = demoStatus?.production_reachable ?? false;
   const agentsOnline = demoStatus?.agents_reachable_count ?? 0;
@@ -27,10 +26,13 @@ export function LiveIncidentCommandCenter() {
 
   const run = useMutation<InvestigateResult>({
     mutationFn: async () => {
+      // Each demo starts from a clean shop, so leftovers of an earlier incident are not mistaken for evidence.
+      setStep("Resetting the simulated shop to a clean state…");
+      await resetShop();
       setStep("Sending normal customer requests to the simulated service…");
       await sendCustomerRequests(6);
-      setStep("Injecting the database slowdown…");
-      const res = await injectControlledFailure(DEMO_FAULT_TYPE, DEMO_SYMPTOM);
+      setStep(`Injecting the failure: ${scenario.label.toLowerCase()}…`);
+      const res = await injectControlledFailure(scenario.id, scenario.symptom);
       setActiveIncidentId(res.incident_id);
       setStep("Sending customer requests to the degraded service…");
       await sendCustomerRequests(10);
@@ -156,6 +158,22 @@ export function LiveIncidentCommandCenter() {
                   The demo failure is a <strong>database slowdown</strong> injected into the simulated order service;
                   real customer-style requests are sent to it so the slowdown is observable.
                 </div>
+                <div className={styles.scenarioRow} role="radiogroup" aria-label="Failure to inject">
+                  {DEMO_SCENARIOS.map((sc) => (
+                    <button
+                      key={sc.id}
+                      type="button"
+                      role="radio"
+                      aria-checked={sc.id === scenarioId}
+                      disabled={run.isPending || inProgress}
+                      className={`${styles.scenarioChip} ${sc.id === scenarioId ? styles.scenarioOn : ""}`}
+                      onClick={() => setScenarioId(sc.id)}
+                    >
+                      {sc.label}
+                    </button>
+                  ))}
+                </div>
+                <div className={styles.scenarioBlurb}>{scenario.blurb}</div>
                 {step && <div className={styles.stepLine}>{step}</div>}
                 {run.isError && <div className={styles.errorLine}>Could not start the demo: {String(run.error)}</div>}
                 {run.data && !run.data.investigation_triggered && (
@@ -192,7 +210,7 @@ export function LiveIncidentCommandCenter() {
                         : undefined
                     }
                   >
-                    {run.isPending ? "Running demo…" : inProgress ? "Investigation in progress" : "Inject Database Slowdown"}
+                    {run.isPending ? "Running demo…" : inProgress ? "Investigation in progress" : `Inject: ${scenario.label}`}
                   </button>
                 )}
                 <a
@@ -218,7 +236,7 @@ export function LiveIncidentCommandCenter() {
                 <p className={styles.emptyText}>
                   {incidentMissing
                     ? "The backend does not know that incident id (it may belong to a different database). Start a new one above."
-                    : "Nothing has been reported. Use “Inject Database Slowdown” to create a real incident, or open one from the Incidents page."}
+                    : "Nothing has been reported. Pick a failure above and inject it to create a real incident, or open one from the Incidents page."}
                 </p>
               </div>
             )}

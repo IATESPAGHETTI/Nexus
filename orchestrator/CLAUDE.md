@@ -204,3 +204,9 @@ under 2 seconds.
 
 ## Usually don't touch
 `backend/`, `production/`, `mcp/` (separate verified components, separate venv)
+
+## Triage (2026-10-13)
+- `triage.py`: `select_agents(text, available, first_round=True)` picks which diagnostic agents to call from keyword
+  rules over the symptom text (never the injected fault). Metrics is always first and at least 2 agents are used on
+  round 1; later rounds ask only agents the Critic's request points at (everyone if none). `investigation.py` emits
+  `AGENTS_SELECTED` per round. `NEXUS_TRIAGE=0` or an explicit `agent_names` bypasses it. Tests: `tests/test_triage.py`.

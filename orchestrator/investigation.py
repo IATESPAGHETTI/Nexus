@@ -41,6 +41,7 @@ import event_bridge  # noqa: E402
 import recovery  # noqa: E402
 from budget import IncidentBudget  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
+import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
@@ -268,12 +269,25 @@ async def run_investigation(
     no further model-backed step starts and the investigation ABSTAINS with
     the budget named as the reason -- it never forces a diagnosis."""
     max_loops = MAX_REEVALUATION_LOOPS if max_loops is None else max_loops
-    agent_names = agent_names or list(DIAGNOSTIC_AGENTS)
+    # `agent_names` given = the caller forces exactly this set (no triage).
+    # Otherwise the Incident Manager triages: only agents the report points at
+    # are called (set NEXUS_TRIAGE=0 to always call all four).
+    forced = bool(agent_names)
+    available = list(agent_names) if forced else list(DIAGNOSTIC_AGENTS)
+    use_triage = not forced and os.environ.get("NEXUS_TRIAGE", "1") != "0"
     budget = budget or IncidentBudget.from_env()
 
     incident_id = incident_id or event_bridge.create_incident(incident_description)
     event_bridge.emit_event(
         incident_id, "INCIDENT_CREATED", source="incident_manager", payload={"description": incident_description}
+    )
+
+    if use_triage:
+        agent_names, skipped = triage.select_agents(incident_description, available)
+    else:
+        agent_names, skipped = available, []
+    event_bridge.emit_event(
+        incident_id, "AGENTS_SELECTED", source="incident_manager", payload=triage.describe(agent_names, skipped, 1)
     )
 
     dispatch = await _dispatch_diagnostic_agents(incident_id, incident_description, agent_names, budget)
@@ -386,7 +400,15 @@ async def run_investigation(
             f"{critique.get('requested_evidence', [])}. Missing evidence noted: "
             f"{leading.get('missing_evidence', [])}."
         )
-        more = await _dispatch_diagnostic_agents(incident_id, follow_up, agent_names, budget)
+        if use_triage:
+            ask_text = f"{critique.get('requested_evidence', [])} {leading.get('missing_evidence', [])}"
+            again, skipped_again = triage.select_agents(ask_text, available, first_round=False)
+            event_bridge.emit_event(
+                incident_id, "AGENTS_SELECTED", source="incident_manager", payload=triage.describe(again, skipped_again, loop_index + 1)
+            )
+        else:
+            again = agent_names
+        more = await _dispatch_diagnostic_agents(incident_id, follow_up, again, budget)
         for name, finding in more["findings"].items():
             findings_by_agent[name] = finding  # latest finding per agent supersedes the prior one
         event_bridge.update_state(incident_id, agent_findings=findings_by_agent)

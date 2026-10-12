@@ -225,6 +225,8 @@ const PILLARS: [string, string][] = [
   ["pl-solution", "Solution"],
   ["pl-agents", "Agents"],
   ["pl-architecture", "Architecture"],
+  ["pl-failures", "Failures"],
+  ["pl-fixes", "Fixes"],
   ["pl-live", "Live system"],
 ];
 

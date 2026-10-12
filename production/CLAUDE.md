@@ -45,6 +45,7 @@ POST /orders             checkout {customer, items:[{product_id, quantity}]} -> 
 GET  /admin/state                             real fault-state snapshot
 POST /admin/fault/inject   {fault_type, bad_version?}
 POST /admin/fault/clear
+POST /admin/reset                             clean slate: faults + metrics/logs/traces/queries/extra changes/extra orders
 POST /admin/recovery/restart_service
 POST /admin/recovery/rollback_deployment {target_version}
 POST /admin/recovery/reset_config
@@ -83,3 +84,8 @@ real state mutation, and `/admin/fault/clear`.
 ## Status
 Phase 2 (Observability) complete and verified. Phase 8/9 (fault-injectable +
 recoverable mutable state) complete and verified — see `docs/PROJECT_STATE.md`.
+
+## 2026-10-13
+- 5xx log entries carry an `error` field (the exception text) via an `HTTPException` handler that stores it on
+  `request.state` (`service.py`); healthy/4xx entries do not. Test: `tests/test_error_logging.py`.
+- `POST /admin/reset` (`tests/test_reset.py`) uses `clear()` on each store and `changes.reset()` (back to 3 seed entries).

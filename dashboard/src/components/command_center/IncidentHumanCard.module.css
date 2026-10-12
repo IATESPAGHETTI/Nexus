@@ -1,11 +1,11 @@
 .cardContainer {
-  background: rgba(22, 20, 20, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.09);
+  background: #ffffff;
+  border: 1px solid rgba(17, 17, 17, 0.09);
   border-radius: 28px;
   padding: 32px;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.5), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.08), inset 0 1px 0 rgba(17, 17, 17, 0.1);
   display: flex;
   flex-direction: column;
   gap: 28px;
@@ -27,7 +27,7 @@
 
 .questionNumber {
   background: rgba(243, 78, 63, 0.15);
-  color: #ffb0a4;
+  color: #c0392b;
   border: 1px solid rgba(243, 78, 63, 0.3);
   padding: 1px 6px;
   border-radius: 4px;
@@ -35,7 +35,7 @@
 
 /* Section Header (Q1) */
 .sectionHeader {
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  border-bottom: 1px solid rgba(17, 17, 17, 0.08);
   padding-bottom: 24px;
 }
 
@@ -69,19 +69,19 @@
 
 .toneAmber {
   background: rgba(233, 166, 78, 0.15);
-  color: #e9a64e;
+  color: #d68a1f;
   border: 1px solid rgba(233, 166, 78, 0.35);
 }
 
 .toneGreen {
   background: rgba(92, 191, 134, 0.15);
-  color: #6fcf97;
+  color: #2fae6a;
   border: 1px solid rgba(92, 191, 134, 0.35);
 }
 
 .toneRed {
   background: rgba(229, 72, 77, 0.15);
-  color: #f0656a;
+  color: #e0474c;
   border: 1px solid rgba(229, 72, 77, 0.35);
 }
 
@@ -95,8 +95,8 @@
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 16px;
-  background: rgba(14, 12, 12, 0.55);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #fafafa;
+  border: 1px solid rgba(17, 17, 17, 0.05);
   border-radius: 20px;
   padding: 16px 20px;
 }
@@ -124,7 +124,7 @@
 .failureValHighlight {
   font-size: 14px;
   font-weight: 600;
-  color: #b8c2ff;
+  color: #3447b8;
   font-family: var(--nx-font-mono);
 }
 
@@ -136,8 +136,8 @@
 
 /* Q2: Investigating box */
 .investigatingBox {
-  background: rgba(29, 27, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: #f8f8f8;
+  border: 1px solid rgba(17, 17, 17, 0.07);
   border-radius: 20px;
   padding: 20px;
 }
@@ -153,8 +153,8 @@
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #60a5fa;
-  box-shadow: 0 0 10px #60a5fa;
+  background: #3b82f6;
+  box-shadow: 0 0 10px #3b82f6;
   animation: pulse 1.8s infinite ease-in-out;
 }
 
@@ -166,7 +166,7 @@
 .activityHeading {
   font-size: 15px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--nx-ink-1);
 }
 
 .activityText {
@@ -181,7 +181,7 @@
   flex-direction: column;
   gap: 8px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
 }
 
 .swarmLabel {
@@ -202,8 +202,8 @@
   gap: 6px;
   font-family: var(--nx-font-mono);
   font-size: 12px;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(17, 17, 17, 0.05);
+  border: 1px solid rgba(17, 17, 17, 0.08);
   padding: 4px 10px;
   border-radius: var(--nx-radius-full);
   color: var(--nx-ink-2);
@@ -213,7 +213,7 @@
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: #6fcf97;
+  background: #2fae6a;
 }
 
 /* Two column layout */
@@ -226,7 +226,7 @@
 /* Q4: Belief Box */
 .beliefBox {
   height: 100%;
-  background: rgba(29, 27, 27, 0.6);
+  background: #f8f8f8;
   border: 1px solid rgba(243, 78, 63, 0.2);
   border-radius: 20px;
   padding: 20px;
@@ -247,7 +247,7 @@
 .beliefTitle {
   font-size: 16px;
   font-weight: 700;
-  color: #f1f5f9;
+  color: var(--nx-ink-1);
   line-height: 1.4;
 }
 
@@ -302,8 +302,8 @@
 }
 
 .evidenceCol {
-  background: rgba(22, 20, 20, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: #f8f8f8;
+  border: 1px solid rgba(17, 17, 17, 0.06);
   border-radius: 20px;
   padding: 18px;
   display: flex;
@@ -321,12 +321,12 @@
 }
 
 .evidenceIconSupporting {
-  color: #6fcf97;
+  color: #2fae6a;
   font-weight: 800;
 }
 
 .evidenceIconContradicting {
-  color: #f0656a;
+  color: #e0474c;
   font-weight: 800;
 }
 
@@ -348,7 +348,7 @@
   line-height: 1.5;
   color: var(--nx-ink-2);
   padding-left: 12px;
-  border-left: 2px solid #6fcf97;
+  border-left: 2px solid #2fae6a;
 }
 
 .evidenceItemContradicting {
@@ -356,7 +356,7 @@
   line-height: 1.5;
   color: var(--nx-ink-2);
   padding-left: 12px;
-  border-left: 2px solid #f0656a;
+  border-left: 2px solid #e0474c;
 }
 
 .evidenceItemPending {
@@ -364,14 +364,14 @@
   line-height: 1.5;
   color: var(--nx-ink-2);
   padding-left: 12px;
-  border-left: 2px solid #e9a64e;
+  border-left: 2px solid #d68a1f;
 }
 
 /* Q6: Decision Card */
 .decisionCard {
   height: 100%;
-  background: rgba(29, 27, 27, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #f8f8f8;
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 20px;
   padding: 20px;
 }
@@ -407,7 +407,7 @@
 /* Q7: Recovery Card */
 .recoveryCard {
   height: 100%;
-  background: rgba(29, 27, 27, 0.6);
+  background: #f8f8f8;
   border: 1px solid rgba(111, 207, 151, 0.2);
   border-radius: 20px;
   padding: 20px;
@@ -424,23 +424,23 @@
   font-family: var(--nx-font-mono);
   font-size: 11px;
   font-weight: 700;
-  color: #6fcf97;
+  color: #2fae6a;
   letter-spacing: 0.08em;
 }
 
 .recoveryStatus {
   font-size: 11px;
   font-weight: 600;
-  color: #b8c2ff;
+  color: #3447b8;
   font-family: var(--nx-font-mono);
 }
 
 .recoveryActionBox {
   font-size: 15px;
   font-weight: 600;
-  color: #f1f5f9;
-  background: rgba(14, 12, 12, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  color: var(--nx-ink-1);
+  background: #fafafa;
+  border: 1px solid rgba(17, 17, 17, 0.06);
   border-radius: 8px;
   padding: 10px 14px;
   margin-bottom: 12px;
@@ -460,7 +460,7 @@
 
 /* Expandable Technical Details Drawer */
 .techDrawerWrapper {
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(17, 17, 17, 0.07);
   padding-top: 20px;
 }
 
@@ -469,8 +469,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  background: rgba(17, 15, 15, 0.6);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #fafafa;
+  border: 1px solid rgba(17, 17, 17, 0.08);
   border-radius: 16px;
   padding: 12px 18px;
   color: var(--nx-ink-2);
@@ -480,8 +480,8 @@
 }
 
 .techDrawerBtn:hover {
-  background: rgba(24, 22, 22, 0.85);
-  border-color: rgba(255, 255, 255, 0.16);
+  background: #ffffff;
+  border-color: rgba(17, 17, 17, 0.16);
   color: #ffffff;
 }
 
@@ -520,8 +520,8 @@
   display: flex;
   flex-direction: column;
   gap: 12px;
-  background: rgba(13, 11, 11, 0.8);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: #fafafa;
+  border: 1px solid rgba(17, 17, 17, 0.05);
   border-radius: 16px;
   padding: 20px;
   margin-top: 12px;
@@ -544,7 +544,7 @@
 .techCode {
   font-family: var(--nx-font-mono);
   font-size: 13px;
-  color: #4db8da;
+  color: #2a9cc0;
   background: rgba(77, 184, 218, 0.1);
   padding: 2px 8px;
   border-radius: 4px;
@@ -560,8 +560,8 @@
 .techToken {
   font-family: var(--nx-font-mono);
   font-size: 12px;
-  color: #cbd5e1;
-  background: rgba(255, 255, 255, 0.06);
+  color: var(--nx-ink-2);
+  background: rgba(17, 17, 17, 0.06);
   padding: 2px 8px;
   border-radius: 4px;
 }
@@ -579,7 +579,7 @@
 .rawJsonBox {
   margin-top: 12px;
   padding-top: 12px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
 }
 
 .rawJsonTitle {
@@ -598,7 +598,7 @@
   border-radius: 8px;
   font-family: var(--nx-font-mono);
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--nx-ink-3);
   overflow-x: auto;
   line-height: 1.5;
 }
@@ -619,11 +619,11 @@
 }
 
 .agentIdle .agentDot { background: #64748b; }
-.agentWorking { border-color: rgba(233, 166, 78, 0.45); background: rgba(233, 166, 78, 0.1); color: #f5cf8f; }
-.agentWorking .agentDot { background: #e9a64e; box-shadow: 0 0 8px #e9a64e; animation: chipPulse 1.4s ease-in-out infinite; }
-.agentReported .agentDot { background: #6fcf97; }
+.agentWorking { border-color: rgba(233, 166, 78, 0.45); background: rgba(233, 166, 78, 0.1); color: #8a5208; }
+.agentWorking .agentDot { background: #d68a1f; box-shadow: 0 0 8px #d68a1f; animation: chipPulse 1.4s ease-in-out infinite; }
+.agentReported .agentDot { background: #2fae6a; }
 .agentFailed { border-color: rgba(229, 72, 77, 0.4); }
-.agentFailed .agentDot { background: #f0656a; }
+.agentFailed .agentDot { background: #e0474c; }
 
 @keyframes chipPulse {
   0%, 100% { opacity: 1; }
@@ -650,7 +650,7 @@
   line-height: 1.55;
   color: var(--nx-ink-2);
   padding-left: 12px;
-  border-left: 2px solid rgba(255, 255, 255, 0.18);
+  border-left: 2px solid rgba(17, 17, 17, 0.18);
 }
 
 .evidenceItemNeutral strong { color: var(--nx-ink-1); font-weight: 600; }
@@ -681,7 +681,7 @@
 .reasonBlock {
   margin-top: 14px;
   padding: 10px 14px;
-  border-left: 2px solid #e9a64e;
+  border-left: 2px solid #d68a1f;
   background: rgba(233, 166, 78, 0.06);
   border-radius: 0 8px 8px 0;
   font-size: 14px;
@@ -689,7 +689,7 @@
   color: var(--nx-ink-2);
 }
 .reasonBlock ul { margin: 6px 0 0 18px; padding: 0; }
-.reasonLabel { font-weight: 700; color: #f5cf8f; }
+.reasonLabel { font-weight: 700; color: #8a5208; }
 
 .notExecuted {
   display: inline-block;
@@ -697,7 +697,7 @@
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: #e9a64e;
+  color: #d68a1f;
   background: var(--nx-amber-bg);
   border: 1px solid var(--nx-amber-border);
   padding: 4px 12px;
@@ -723,7 +723,7 @@
   line-height: 1.5;
   color: var(--nx-ink-1);
   padding: 8px 0;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(17, 17, 17, 0.06);
 }
 .recoveryFactLabel { color: var(--nx-ink-3); }
 .actionLine { display: block; }

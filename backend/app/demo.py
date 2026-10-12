@@ -122,6 +122,17 @@ def inject_fault(fault_type: str) -> dict:
     return r.json()
 
 
+def reset_shop() -> dict:
+    """Return the simulated shop to a clean state (no faults, no history of earlier incidents)."""
+    try:
+        r = httpx.post(f"{PRODUCTION_URL}/admin/reset", timeout=_TIMEOUT)
+    except httpx.RequestError as exc:
+        raise ProductionUnavailableError(f"could not reach production/: {exc}") from exc
+    if r.status_code >= 400:
+        raise ProductionUnavailableError(f"production/ rejected the reset: HTTP {r.status_code} {r.text}")
+    return r.json()
+
+
 def spawn_investigation(incident_id: str, description: str) -> bool:
     """Launches the real orchestrator subprocess against an already-created
     incident. Fire-and-forget: does not block on or wait for the real Groq/
