@@ -10,7 +10,8 @@ on three faults, +76% on config_error and resource_exhaustion (called all four +
 are one fault = noise. Not comparable with the earlier tables (different code). Cost: balance 0.73 -> 0.68 (~5 cents).
 **Research page was black when scrolled** in the embedded browser (also on /presentation): fixed on /research by removing the
 `overflow-x: clip` page wrapper, giving every section its own background and setting the body colour while mounted; checked in
-the pane. `/presentation` still shows it and was NOT changed.
+the pane. Same fix applied to `/presentation` afterwards (`Story.module.css` `.page` no longer sets `overflow-x: clip`); both pages
+verified at the top, middle and bottom in the pane, no horizontal overflow.
 **Still open**: repeat runs for variance; leave-one-out arm; live recovery check; resource telemetry in the simulation.
 
 ## Merge of `claude/research-questions-architecture-e9382f` into the improvements branch (2026-10-13)
