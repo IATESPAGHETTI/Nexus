@@ -8,7 +8,7 @@ from pydantic import BaseModel
 import changes
 import db
 import state
-from observability import log_store, metrics_store, new_trace_id, now_iso, trace_store
+from observability import log_store, metrics_store, new_trace_id, now_iso, query_store, trace_store
 
 app = FastAPI(title="nexus-production-simulated")
 
@@ -20,6 +20,11 @@ RESOURCE_EXHAUSTION_ERROR_RATE = 0.08
 
 
 def _record_request(request: Request, trace_id: str, status_code: int, duration_ms: float) -> None:
+    # /admin/* is the test/recovery control plane, not customer traffic. Recording it would
+    # let diagnostic agents read "POST /admin/fault/inject" in the logs and traces, i.e. see
+    # the test harness instead of diagnosing symptoms.
+    if request.url.path.startswith("/admin"):
+        return
     is_error = status_code >= 500
     endpoint = f"{request.method} {request.url.path}"
     metrics_store.record(endpoint, duration_ms, is_error)
@@ -197,8 +202,8 @@ def admin_inject_fault(body: FaultInjectRequest) -> dict:
         changes.append(
             "deployment",
             new_state["deployed_version"],
-            "Deploy: refactored order total calculation (fault_injection)",
-            author="fault_injection",
+            "Deploy: refactored order total calculation",
+            author="ci-pipeline",
         )
     return new_state
 
@@ -206,6 +211,20 @@ def admin_inject_fault(body: FaultInjectRequest) -> dict:
 @app.post("/admin/fault/clear")
 def admin_clear_fault() -> dict:
     return state.clear_all()
+
+
+@app.post("/admin/reset")
+def admin_reset() -> dict:
+    """Test/demo reset for repeatable benchmarks: clears faults AND all accumulated
+    evidence (injected change records, metrics, logs, traces, query log) so one
+    scenario's residue cannot leak into the next."""
+    new_state = state.clear_all()
+    changes.reset()
+    metrics_store.clear()
+    log_store.clear()
+    trace_store.clear()
+    query_store.clear()
+    return new_state
 
 
 @app.post("/admin/recovery/restart_service")

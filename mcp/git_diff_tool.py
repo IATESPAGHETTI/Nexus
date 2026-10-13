@@ -44,6 +44,10 @@ def _run_git(args: list[str]) -> str:
         ["git", "-C", str(REPO_ROOT), *args],
         capture_output=True,
         text=True,
+        # git emits UTF-8; the Windows default (cp1252) crashed on e.g. em dashes in commit
+        # messages, which made the whole tool return an error and left the agent with no diff.
+        encoding="utf-8",
+        errors="replace",
         timeout=GIT_TIMEOUT_SECONDS,
         check=False,
     )

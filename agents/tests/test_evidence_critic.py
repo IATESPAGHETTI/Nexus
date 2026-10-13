@@ -166,3 +166,24 @@ def test_build_critique_coerces_non_list_fields_to_empty_lists():
     critique = build_critique(SAMPLE_HYPOTHESIS, SAMPLE_EVIDENCE_POOL, raw)
     assert critique["contradictions"] == []
     assert critique["verdict"] == "CONTRADICTED"
+
+
+def test_critic_instruction_lists_exactly_the_real_mcp_tools():
+    """The critic may only request evidence the tools can return; keep its list in sync with mcp/tools.py."""
+    import re
+
+    tools_src = (Path(__file__).resolve().parents[2] / "mcp" / "tools.py").read_text(encoding="utf-8")
+    real = set(re.findall(r'@_audited\("(\w+)"\)', tools_src))
+    assert set(critic_agent_module.AVAILABLE_TOOLS) == real
+    for name in real:
+        assert name in critic_agent_module.INSTRUCTION
+    assert "unobtainable_evidence" in critic_agent_module.INSTRUCTION
+
+
+def test_build_critique_keeps_unobtainable_evidence_separate():
+    c = build_critique(
+        {"hypothesis_id": "H1"},
+        [],
+        {"verdict": "SUPPORTED", "requested_evidence": [], "unobtainable_evidence": ["stack trace"], "rationale": "r"},
+    )
+    assert c["unobtainable_evidence"] == ["stack trace"] and c["requested_evidence"] == []

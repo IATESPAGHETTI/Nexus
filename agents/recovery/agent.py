@@ -181,7 +181,7 @@ class RecoveryAgent:
 
         raw = await self._reasoner.investigate(question)
         plan = build_recovery_plan(hypothesis, critique, raw.get("parsed"))
-        return {"recovery_plan": plan}
+        return {"recovery_plan": plan, "llm_usage": raw.get("llm_usage")}
 
 
 recovery_agent = RecoveryAgent()

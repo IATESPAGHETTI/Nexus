@@ -30,6 +30,20 @@ VALID_VERDICTS = {
     "ABSTAIN",
 }
 
+# What the diagnostic agents can actually fetch (mirrors mcp/tools.py; a test keeps the names in sync).
+# The critic must only ask for evidence one of these can return.
+AVAILABLE_TOOLS = {
+    "get_metrics": "request/error counts and avg/p99 latency per endpoint",
+    "query_logs": "recent application log entries, optionally by level",
+    "get_trace": "recent request traces (timing, status) or one trace by id; no stack traces",
+    "get_recent_deployments": "the change/deployment history",
+    "get_git_diff": "recent commit history and diffs for the repo's deployable paths",
+    "get_database_stats": "row counts and recent query timings",
+    "run_diagnostic": "connectivity_check, error_rate_check or order_status_check",
+}
+
+_TOOL_LIST = "; ".join(f"{name} ({what})" for name, what in AVAILABLE_TOOLS.items())
+
 INSTRUCTION = (
     "You are the NEXUS Root-Cause Critic. You will be given a JSON object with "
     "two keys: \"hypothesis\" (a single Hypothesis object under review -- "
@@ -54,7 +68,26 @@ INSTRUCTION = (
     "contradiction. Use CONTRADICTED when evidence_pool entries actively "
     "conflict with it. Use INSUFFICIENT_EVIDENCE or REQUEST_MORE_EVIDENCE when "
     "the evidence_pool is too thin either way. Use ABSTAIN only if no "
-    "reasonable diagnosis is currently supportable at all."
+    "reasonable diagnosis is currently supportable at all.\n\n"
+    "RULES FOR REQUESTING EVIDENCE. The diagnostic agents can ONLY use these "
+    "tools: " + _TOOL_LIST + ". \"requested_evidence\" must contain ONLY "
+    "items one of these tools can actually return (name the tool). Anything "
+    "they cannot provide -- stack traces, exception messages, child spans, "
+    "CPU/memory telemetry, request payloads, source code beyond the git diff -- "
+    "belongs in \"unobtainable_evidence\" (array of strings, same shape) and "
+    "must NOT be treated as a reason to withhold SUPPORTED: judge the "
+    "hypothesis on the evidence that exists and note the gap. Do not repeat a "
+    "request that an earlier round already made; if the evidence_pool still "
+    "does not answer it, treat it as unobtainable.\n\n"
+    "WHAT IS NOT A CONTRADICTION. Partial or intermittent failure is the normal "
+    "signature of a bug, a flaky dependency or a resource limit: some requests "
+    "fail while others at the same time succeed. A success next to a failure "
+    "does NOT contradict a fault hypothesis by itself. Count something as a "
+    "contradiction only if it is inconsistent with the hypothesis under any "
+    "reasonable reading. If the hypothesis explains the observed symptoms "
+    "better than every alternative you can name from the evidence, and the "
+    "only remaining gaps are unobtainable ones, reply SUPPORTED and list the "
+    "gaps in \"unsupported_assumptions\"."
 )
 
 DEFAULT_QUESTION = json.dumps({"hypothesis": {}, "evidence_pool": []})
@@ -103,6 +136,7 @@ def build_critique(hypothesis: dict, evidence_pool: list[dict], raw_model_output
         "unsupported_assumptions": _string_list("unsupported_assumptions"),
         "alternative_explanations": _string_list("alternative_explanations"),
         "requested_evidence": _string_list("requested_evidence"),
+        "unobtainable_evidence": _string_list("unobtainable_evidence"),
         "rationale": str(rationale) if rationale else "(no rationale provided)",
         "evidence_pool_size": len(evidence_pool) if isinstance(evidence_pool, list) else 0,
         "timestamp": now_iso(),
@@ -139,7 +173,9 @@ class CriticAgent:
         evidence_pool = payload.get("evidence_pool") or []
 
         raw = await self._reasoner.investigate(question)
-        return build_critique(hypothesis, evidence_pool, raw.get("parsed"))
+        critique = build_critique(hypothesis, evidence_pool, raw.get("parsed"))
+        critique["llm_usage"] = raw.get("llm_usage")
+        return critique
 
 
 critic_agent = CriticAgent()

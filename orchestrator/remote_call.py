@@ -16,11 +16,13 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO_ROOT / "agents" / "common"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from google.adk.runners import InMemoryRunner  # noqa: E402
 from google.genai import types  # noqa: E402
 
 from remote_agent import build_remote_agent  # noqa: E402
+from usage_tracker import take_usage  # noqa: E402
 
 
 async def call_remote_agent(agent_name: str, description: str, message_text: str) -> dict:
@@ -56,4 +58,5 @@ async def call_remote_agent(agent_name: str, description: str, message_text: str
     except json.JSONDecodeError:
         parsed = None
 
-    return {"response": parsed, "raw_text": result_text, "task_id": task_id, "context_id": context_id}
+    usage = take_usage(parsed)
+    return {"response": parsed, "raw_text": result_text, "task_id": task_id, "context_id": context_id, "llm_usage": usage}

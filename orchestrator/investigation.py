@@ -40,6 +40,7 @@ import event_bridge  # noqa: E402
 import recovery  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
+from usage_tracker import record_usage, take_usage  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
 
@@ -73,6 +74,7 @@ async def _dispatch_diagnostic_agents(incident_id: str, question: str, agent_nam
 
     for name in result["agents_responded"]:
         finding = result["findings"][name]
+        record_usage(incident_id, name, take_usage(finding))
         a2a_meta = result["a2a"].get(name, {})
         event_bridge.emit_event(
             incident_id,
@@ -138,6 +140,7 @@ async def _call_evidence_agent(incident_id: str, findings_by_agent: dict) -> lis
         status="completed",
         payload={"task_id": call["task_id"], "context_id": call["context_id"]},
     )
+    record_usage(incident_id, EVIDENCE_AGENT_NAME, call.get("llm_usage"))
     response = call["response"] if isinstance(call["response"], dict) else {}
     hypotheses = response.get("hypotheses", [])
     if not isinstance(hypotheses, list):
@@ -158,6 +161,7 @@ async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[d
         status="completed",
         payload={"task_id": call["task_id"], "context_id": call["context_id"]},
     )
+    record_usage(incident_id, CRITIC_AGENT_NAME, call.get("llm_usage"))
     critique = call["response"] if isinstance(call["response"], dict) else None
     if not critique:
         critique = {
@@ -170,6 +174,17 @@ async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[d
         incident_id, "CRITIC_CHALLENGE", source=CRITIC_AGENT_NAME, target=hypothesis.get("hypothesis_id"), payload=critique
     )
     return critique
+
+
+def _stalled(critique: dict, previous_requests: set[str]) -> str | None:
+    """A re-dispatch only helps if the critic asks for something new that the tools can
+    fetch. Returns the reason to stop instead, or None to keep going."""
+    requested = {str(r).strip().lower() for r in critique.get("requested_evidence") or [] if str(r).strip()}
+    if not requested:
+        return "critic requested no further obtainable evidence"
+    if requested == previous_requests:
+        return "critic repeated its previous evidence request; re-investigation added nothing"
+    return None
 
 
 async def run_investigation(
@@ -236,6 +251,7 @@ async def run_investigation(
                 incident_id, "DIAGNOSIS_REACHED", source="incident_manager", payload={"hypothesis": leading, "critique": synthetic_critique}
             )
 
+    previous_requests: set[str] = set()
     for loop_index in range(1, max_loops + 1) if not skip_critic else ():
         loops_used = loop_index
         leading = _leading_hypothesis(hypotheses)
@@ -292,6 +308,13 @@ async def run_investigation(
 
         if loop_index == max_loops:
             break  # no budget left to re-dispatch; falls through to the abstain path below
+
+        stall_reason = _stalled(critique, previous_requests)
+        if stall_reason:
+            decision = "ABSTAINED"
+            reason = f"{stall_reason} (loop {loop_index} of {max_loops})"
+            break
+        previous_requests = {str(r).strip().lower() for r in critique.get("requested_evidence") or []}
 
         follow_up = (
             f"Re-investigate incident: {incident_description}. The root-cause critic "

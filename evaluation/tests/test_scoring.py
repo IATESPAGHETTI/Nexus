@@ -128,3 +128,22 @@ def test_gemini_configuration_is_valid_but_not_an_official_benchmark():
 def test_unknown_runtime_provider_is_rejected():
     with pytest.raises(ValueError, match="NEXUS_LLM_PROVIDER"):
         runtime_config.resolve_runtime_config("unsupported-provider", "model")
+
+
+def test_aggregate_reports_tokens_only_when_provider_reported():
+    base = {"correct": True, "false_diagnosis": False, "abstained": False, "made_a_diagnosis": True}
+    agg = scoring.aggregate([{**base, "total_tokens": 100, "llm_calls": 2}, {**base, "total_tokens": 300, "llm_calls": 4}, dict(base)])
+    assert agg["avg_total_tokens"] == 200.0 and agg["avg_llm_calls"] == 3.0
+    assert scoring.aggregate([dict(base)])["avg_total_tokens"] is None
+
+
+@pytest.mark.parametrize("text", [
+    "No root cause for a database slowdown is supported: all evidence shows a healthy system",
+    "Insufficient evidence to pin the failure on the deployment",
+])
+def test_negated_statements_are_not_credited_as_a_diagnosis(text):
+    assert scoring.classify_statement(text) == "unknown"
+
+
+def test_affirmative_statement_still_classified():
+    assert scoring.classify_statement("A bad deployment introduced the order total bug") == "bad_deployment"

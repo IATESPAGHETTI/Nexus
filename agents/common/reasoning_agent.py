@@ -30,6 +30,7 @@ if str(REPO_ROOT) not in sys.path:
 load_dotenv(REPO_ROOT / ".env")
 
 from runtime_config import litellm_model_name, resolve_runtime_config  # noqa: E402
+from llm_usage import UsageMeter  # noqa: E402
 
 # Same real Groq free-tier TPM constraint as agents/common/diagnostic_agent.py.
 litellm.num_retries = 5
@@ -100,9 +101,11 @@ class ReasoningAgent:
         user_message = types.Content(role="user", parts=[types.Part(text=question)])
 
         final_text = ""
+        meter = UsageMeter()
         async for event in runner.run_async(
             user_id="nexus", session_id=session.id, new_message=user_message
         ):
+            meter.observe(event)
             if not (event.content and event.content.parts):
                 continue
             for part in event.content.parts:
@@ -110,4 +113,4 @@ class ReasoningAgent:
                 if text:
                     final_text += text
 
-        return {"raw_text": final_text, "parsed": extract_json(final_text)}
+        return {"raw_text": final_text, "parsed": extract_json(final_text), "llm_usage": meter.as_dict()}

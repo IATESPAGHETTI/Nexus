@@ -30,6 +30,7 @@ from google.genai import types
 
 from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import mcp_server_connection_params
+from llm_usage import UsageMeter
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
@@ -85,6 +86,22 @@ class DiagnosticAgent:
             tools=[toolset],
         )
 
+    @staticmethod
+    async def _release(agent, runner) -> None:
+        """Closes the MCP toolset (kills its stdio server subprocess) and the runner.
+        Without this every investigation leaked one MCP server process."""
+        for tool in agent.tools:
+            close = getattr(tool, "close", None)
+            if close:
+                try:
+                    await close()
+                except Exception:  # cleanup must never mask the investigation result
+                    pass
+        try:
+            await runner.close()
+        except Exception:
+            pass
+
     async def investigate(self, question: str) -> dict:
         agent = self.build_adk_agent()
         runner = InMemoryRunner(agent=agent, app_name=f"nexus_{self.agent_name}")
@@ -92,54 +109,62 @@ class DiagnosticAgent:
             app_name=f"nexus_{self.agent_name}", user_id="nexus"
         )
 
-        pending_calls: dict[str, dict] = {}
-        evidence: list[dict] = []
-        final_text = ""
-        window_start = now_iso()
+        try:
+            pending_calls: dict[str, dict] = {}
+            evidence: list[dict] = []
+            final_text = ""
+            window_start = now_iso()
+            meter = UsageMeter()
 
-        user_message = types.Content(role="user", parts=[types.Part(text=question)])
+            user_message = types.Content(role="user", parts=[types.Part(text=question)])
 
-        async for event in runner.run_async(
-            user_id="nexus",
-            session_id=session.id,
-            new_message=user_message,
-        ):
-            if not (event.content and event.content.parts):
-                continue
-            for part in event.content.parts:
-                call = getattr(part, "function_call", None)
-                if call and call.name in self.allowed_tools:
-                    key = call.id or call.name
-                    pending_calls[key] = {"tool": call.name, "arguments": dict(call.args or {})}
+            async for event in runner.run_async(
+                user_id="nexus",
+                session_id=session.id,
+                new_message=user_message,
+            ):
+                meter.observe(event)
+                if not (event.content and event.content.parts):
+                    continue
+                for part in event.content.parts:
+                    call = getattr(part, "function_call", None)
+                    if call and call.name in self.allowed_tools:
+                        key = call.id or call.name
+                        pending_calls[key] = {"tool": call.name, "arguments": dict(call.args or {})}
 
-                response = getattr(part, "function_response", None)
-                if response and response.name in self.allowed_tools:
-                    key = response.id or response.name
-                    call_info = pending_calls.pop(key, {"tool": response.name, "arguments": {}})
-                    raw = response.response
-                    # McpToolset returns the full MCP CallToolResult envelope
-                    # ({"content", "structuredContent", "isError"}); unwrap to the
-                    # tool's own structured dict (mcp/tools.py's real return value)
-                    # when present — still the real, unmodified tool output.
-                    if isinstance(raw, dict) and "structuredContent" in raw:
-                        result = raw["structuredContent"]
-                    else:
-                        result = raw
-                    evidence.append(
-                        make_evidence_item(
-                            tool=call_info["tool"],
-                            arguments=call_info["arguments"],
-                            result=result,
+                    response = getattr(part, "function_response", None)
+                    if response and response.name in self.allowed_tools:
+                        key = response.id or response.name
+                        call_info = pending_calls.pop(key, {"tool": response.name, "arguments": {}})
+                        raw = response.response
+                        # McpToolset returns the full MCP CallToolResult envelope
+                        # ({"content", "structuredContent", "isError"}); unwrap to the
+                        # tool's own structured dict (mcp/tools.py's real return value)
+                        # when present — still the real, unmodified tool output.
+                        if isinstance(raw, dict) and "structuredContent" in raw:
+                            result = raw["structuredContent"]
+                        else:
+                            result = raw
+                        evidence.append(
+                            make_evidence_item(
+                                tool=call_info["tool"],
+                                arguments=call_info["arguments"],
+                                result=result,
+                            )
                         )
-                    )
 
-                text = getattr(part, "text", None)
-                if text:
-                    final_text += text
+                    text = getattr(part, "text", None)
+                    if text:
+                        final_text += text
 
-        return build_finding(
+        finally:
+            await self._release(agent, runner)
+
+        finding = build_finding(
             agent_name=self.agent_name,
             evidence=evidence,
             model_text=final_text,
             window_start=window_start,
         )
+        finding["llm_usage"] = meter.as_dict()
+        return finding

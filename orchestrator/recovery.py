@@ -56,6 +56,7 @@ import executor as guardrails_executor  # noqa: E402
 import policy as guardrails_policy  # noqa: E402
 from config import APPROVAL_POLL_INTERVAL_SECONDS, MAX_APPROVAL_WAIT_SECONDS, PRODUCTION_BASE_URL  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
+from usage_tracker import record_usage  # noqa: E402
 
 RECOVERY_AGENT_NAME = "recovery_agent"
 RECOVERY_AGENT_DESCRIPTION = "NEXUS Recovery Agent: proposes a bounded RecoveryPlan for a diagnosed incident."
@@ -81,6 +82,7 @@ async def _call_recovery_agent(incident_id: str, hypothesis: dict, critique: dic
         status="completed",
         payload={"task_id": call["task_id"], "context_id": call["context_id"]},
     )
+    record_usage(incident_id, RECOVERY_AGENT_NAME, call.get("llm_usage"))
     response = call["response"] if isinstance(call["response"], dict) else {}
     plan = response.get("recovery_plan")
     if not isinstance(plan, dict):
