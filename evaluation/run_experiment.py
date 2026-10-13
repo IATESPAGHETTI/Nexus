@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import sys
 import time
 from pathlib import Path
@@ -37,27 +38,36 @@ import baselines  # noqa: E402
 import injector  # noqa: E402
 import scenarios  # noqa: E402
 import scoring  # noqa: E402
+from incident_manager import DIAGNOSTIC_AGENTS  # noqa: E402
 from investigation import run_investigation  # noqa: E402
 from runtime_config import is_official_benchmark_config, resolve_runtime_config  # noqa: E402
 
 RESULTS_DIR = Path(__file__).resolve().parent / "results"
 
 
-def _leading_hypothesis_statement(incident: dict) -> str | None:
+def _leading_hypothesis(incident: dict) -> dict | None:
     hypotheses = incident.get("hypotheses") or []
     open_ones = [h for h in hypotheses if h.get("status") in ("SUPPORTED", "PROPOSED", "UNDER_REVIEW", "NEEDS_EVIDENCE")]
     if not open_ones:
         return None
-    return max(open_ones, key=lambda h: h.get("confidence", 0.0)).get("statement")
+    return max(open_ones, key=lambda h: h.get("confidence", 0.0))
 
 
 async def _run_full_nexus(description: str, skip_critic: bool) -> dict:
     start = time.perf_counter()
-    incident = await run_investigation(description, skip_critic=skip_critic, trigger_recovery=False)
+    # Explicit agent_names forces all four specialists (no triage), so these arms stay comparable
+    # with each other and with earlier reports. Triage is a separate, not-yet-benchmarked arm.
+    incident = await run_investigation(
+        description, agent_names=list(DIAGNOSTIC_AGENTS), skip_critic=skip_critic, trigger_recovery=False
+    )
     latency = time.perf_counter() - start
     abstained = incident.get("status") == "ABSTAINED"
-    statement = _leading_hypothesis_statement(incident) if not abstained else None
-    predicted = scoring.classify_statement(statement)
+    leading = _leading_hypothesis(incident) if not abstained else None
+    statement = leading.get("statement") if leading else None
+    # Scored on the structured fault_class the Evidence Agent asserts (same closed list the
+    # baseline answers from), not on keyword-matching free text. The statement is kept for audit.
+    fault_class = leading.get("fault_class") if leading else None
+    predicted = fault_class if fault_class in scoring.ROOT_CAUSE_KEYWORDS else "unknown"
     tool_calls = sum(len(f.get("evidence", []) or []) for f in (incident.get("agent_findings") or {}).values())
     return {
         "incident_id": incident.get("incident_id"),
@@ -71,31 +81,84 @@ async def _run_full_nexus(description: str, skip_critic: bool) -> dict:
     }
 
 
+TRAFFIC_REQUESTS = 30
+
+
+def _errored_arm(ground_truth: str, exc: BaseException) -> dict:
+    """An arm that crashed is recorded as a run with no diagnosis and an explicit error --
+    visible in the report and the aggregate, never silently dropped or turned into a guess."""
+    record = scoring.score_run("unknown", ground_truth, abstained=False)
+    record.update({"error": f"{type(exc).__name__}: {str(exc)[:200]}", "latency_seconds": 0.0})
+    return record
+
+
+def _send_customer_traffic(count: int = TRAFFIC_REQUESTS) -> dict:
+    """Real customer requests to the simulated service. Faults like db_slowdown or
+    bad_deployment only leave metrics/log/trace evidence when requests flow, so the
+    scenario setup sends the same traffic before every arm."""
+    import httpx
+
+    base = os.environ.get("PRODUCTION_BASE_URL", "http://localhost:8001")
+    ok = failed = 0
+    with httpx.Client(timeout=15.0) as client:
+        for i in range(count):
+            try:
+                r = client.get(f"{base}/orders" if i % 2 == 0 else f"{base}/orders/1")
+                ok += r.status_code < 500
+                failed += r.status_code >= 500
+            except httpx.HTTPError:
+                failed += 1
+    return {"ok": ok, "failed": failed}
+
+
 async def run_one_scenario(scenario_id: str) -> dict:
     scenario = scenarios.get_scenario(scenario_id)
     ground_truth = scenarios.get_ground_truth(scenario_id)
     description = scenario["description"]
 
-    injector.clear()
-    injector.inject(scenario_id)
+    def prepare() -> dict:
+        """Identical setup for every arm: wipe all state, inject, send customer traffic."""
+        injector.reset()
+        injector.inject(scenario_id)
+        return _send_customer_traffic()
+
     try:
-        baseline_start = time.perf_counter()
-        baseline_raw = baselines.single_agent_baseline(description)
-        baseline_result = scoring.score_run(baseline_raw["root_cause"], ground_truth["ground_truth_root_cause"], abstained=False)
-        baseline_result["latency_seconds"] = baseline_raw["latency_seconds"]
+        traffic = prepare()
+        truth = ground_truth["ground_truth_root_cause"]
+        try:
+            baseline_raw = baselines.single_agent_baseline(description)
+            baseline_result = scoring.score_run(baseline_raw["root_cause"], truth, abstained=False)
+            baseline_result["latency_seconds"] = baseline_raw["latency_seconds"]
+            # Same shape as the NEXUS arms' measured token_cost, so aggregate() averages it alike.
+            baseline_result["token_cost"] = (
+                {"llm_calls": 1, "total_tokens": baseline_raw["total_tokens"], "unmeasured_tasks": 0}
+                if baseline_raw.get("total_tokens")
+                else scoring.TOKEN_COST_UNAVAILABLE
+            )
+        except Exception as exc:  # noqa: BLE001
+            baseline_result = _errored_arm(truth, exc)
 
-        full_raw = await _run_full_nexus(description, skip_critic=False)
-        full_result = scoring.score_run(full_raw["predicted_root_cause"], ground_truth["ground_truth_root_cause"], abstained=full_raw["abstained"])
-        full_result.update({k: v for k, v in full_raw.items() if k not in full_result})
+        prepare()
+        try:
+            full_raw = await _run_full_nexus(description, skip_critic=False)
+            full_result = scoring.score_run(full_raw["predicted_root_cause"], truth, abstained=full_raw["abstained"])
+            full_result.update({k: v for k, v in full_raw.items() if k not in full_result})
+        except Exception as exc:  # noqa: BLE001
+            full_result = _errored_arm(truth, exc)
 
-        ablation_raw = await _run_full_nexus(description, skip_critic=True)
-        ablation_result = scoring.score_run(ablation_raw["predicted_root_cause"], ground_truth["ground_truth_root_cause"], abstained=ablation_raw["abstained"])
-        ablation_result.update({k: v for k, v in ablation_raw.items() if k not in ablation_result})
+        prepare()
+        try:
+            ablation_raw = await _run_full_nexus(description, skip_critic=True)
+            ablation_result = scoring.score_run(ablation_raw["predicted_root_cause"], truth, abstained=ablation_raw["abstained"])
+            ablation_result.update({k: v for k, v in ablation_raw.items() if k not in ablation_result})
+        except Exception as exc:  # noqa: BLE001
+            ablation_result = _errored_arm(truth, exc)
     finally:
-        injector.clear()
+        injector.reset()
 
     return {
         "scenario_id": scenario_id,
+        "setup_traffic": {"requests_per_arm": TRAFFIC_REQUESTS, "first_batch": traffic},
         "ground_truth_root_cause": ground_truth["ground_truth_root_cause"],
         "single_agent_baseline": baseline_result,
         "full_nexus": full_result,

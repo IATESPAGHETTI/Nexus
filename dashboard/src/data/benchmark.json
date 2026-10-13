@@ -1,0 +1,147 @@
+{
+ "timestamp": "2026-10-13T17:28:19Z",
+ "model": "deepseek/deepseek-chat",
+ "classification": "official_nexus_benchmark",
+ "aggregates": {
+  "single_agent_baseline": {
+   "total_runs": 5,
+   "root_cause_accuracy": 0.8,
+   "false_diagnosis_rate": 0.0,
+   "abstention_rate": 0.0,
+   "diagnosis_rate": 0.8,
+   "avg_latency_seconds": 9.825,
+   "errored_runs": 0,
+   "avg_total_tokens": 2370.8,
+   "avg_llm_calls": 1.0
+  },
+  "full_nexus": {
+   "total_runs": 5,
+   "root_cause_accuracy": 0.8,
+   "false_diagnosis_rate": 0.0,
+   "abstention_rate": 0.0,
+   "diagnosis_rate": 0.8,
+   "avg_latency_seconds": 51.288,
+   "errored_runs": 0,
+   "avg_total_tokens": 70255.2,
+   "avg_llm_calls": 18.8
+  },
+  "nexus_no_critic": {
+   "total_runs": 5,
+   "root_cause_accuracy": 0.4,
+   "false_diagnosis_rate": 0.0,
+   "abstention_rate": 0.0,
+   "diagnosis_rate": 0.4,
+   "avg_latency_seconds": 21.459,
+   "errored_runs": 0,
+   "avg_total_tokens": 23039.6,
+   "avg_llm_calls": 9.2
+  }
+ },
+ "runs": [
+  {
+   "scenario": "FI-bad-deployment",
+   "single_agent_baseline": {
+    "predicted": "bad_deployment",
+    "outcome": "correct",
+    "seconds": 9.581,
+    "tokens": 2484
+   },
+   "full_nexus": {
+    "predicted": "bad_deployment",
+    "outcome": "correct",
+    "seconds": 25.436,
+    "tokens": 30320
+   },
+   "nexus_no_critic": {
+    "predicted": "unknown",
+    "outcome": "no diagnosis",
+    "seconds": 21.04,
+    "tokens": 28328
+   }
+  },
+  {
+   "scenario": "FI-db-slowdown",
+   "single_agent_baseline": {
+    "predicted": "db_slowdown",
+    "outcome": "correct",
+    "seconds": 9.695,
+    "tokens": 2391
+   },
+   "full_nexus": {
+    "predicted": "db_slowdown",
+    "outcome": "correct",
+    "seconds": 25.848,
+    "tokens": 24679
+   },
+   "nexus_no_critic": {
+    "predicted": "db_slowdown",
+    "outcome": "correct",
+    "seconds": 21.206,
+    "tokens": 20358
+   }
+  },
+  {
+   "scenario": "FI-config-error",
+   "single_agent_baseline": {
+    "predicted": "config_error",
+    "outcome": "correct",
+    "seconds": 9.892,
+    "tokens": 2147
+   },
+   "full_nexus": {
+    "predicted": "config_error",
+    "outcome": "correct",
+    "seconds": 58.245,
+    "tokens": 108870
+   },
+   "nexus_no_critic": {
+    "predicted": "unknown",
+    "outcome": "no diagnosis",
+    "seconds": 21.942,
+    "tokens": 25784
+   }
+  },
+  {
+   "scenario": "FI-dependency-failure",
+   "single_agent_baseline": {
+    "predicted": "dependency_failure",
+    "outcome": "correct",
+    "seconds": 9.82,
+    "tokens": 2414
+   },
+   "full_nexus": {
+    "predicted": "dependency_failure",
+    "outcome": "correct",
+    "seconds": 86.772,
+    "tokens": 127575
+   },
+   "nexus_no_critic": {
+    "predicted": "unknown",
+    "outcome": "no diagnosis",
+    "seconds": 21.73,
+    "tokens": 21277
+   }
+  },
+  {
+   "scenario": "FI-resource-exhaustion",
+   "single_agent_baseline": {
+    "predicted": "unknown",
+    "outcome": "no diagnosis",
+    "seconds": 10.135,
+    "tokens": 2418
+   },
+   "full_nexus": {
+    "predicted": "unknown",
+    "outcome": "no diagnosis",
+    "seconds": 60.137,
+    "tokens": 59832
+   },
+   "nexus_no_critic": {
+    "predicted": "resource_exhaustion",
+    "outcome": "correct",
+    "seconds": 21.378,
+    "tokens": 19451
+   }
+  }
+ ]
+}

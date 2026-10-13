@@ -1,5 +1,19 @@
 # NEXUS Project State
 
+## Merge of `claude/research-questions-architecture-e9382f` into the improvements branch (2026-10-13)
+Both branches had independently built the same token accounting, git UTF-8 fix, `/admin/reset`, hidden admin calls, MCP
+close-after-task and an evidence-limits critic prompt. Kept THEIRS for all of those (`usage_tally`, `budget`, critic EVIDENCE
+LIMITS prompt, fuller `/admin/reset`, triage, shop). Brought over from mine only what was unique: the `/research` page and its
+benchmark data; Evidence Agent `fault_class` + scoring on it (negation guard); loop stall detection (`_stalled`, 3 tests);
+the critic's "partial failure is not a contradiction" rule; benchmark runner changes (reset + inject + 30 requests before every
+arm, errored arms recorded, baseline tokens via `token_cost`, `errored_runs`); baseline reader 5xx retry; the `_release` MCP
+cleanup extracted into a testable method + regression test; the injected deployment no longer tagged `fault_injection`
+(their branch still had that leak). The benchmark's full / no-critic arms now pass `agent_names` explicitly = all four
+specialists (triage would otherwise change what is measured). **The `/research` numbers were measured on my branch BEFORE triage
+existed; triage and a leave-one-out arm are NOT yet benchmarked.** Tests after merge: tests 61, evaluation 25, orchestrator
+logic/budget/triage/verification/recovery 83 (incl. evaluation), agents 35, mcp 24 (needs the shop reset first: the live DB
+must hold the 10 seed orders), MCP-release 1; dashboard `tsc -b` clean.
+
 ## Five failures, agent triage, live-section redesign (2026-10-13)
 - **Five injectable failures** in the dashboard (`dashboard/src/lib/scenarios.ts`): slow database, bad release, wrong setting,
   payment service down, out of memory. Each sends only a customer-side symptom to the agents (blind-evaluation rule).
@@ -229,6 +243,29 @@ Two Definition-of-Done gaps closed (root CLAUDE.md §8 budgets, §15 persistent 
   several times; add a healthy/ambiguous control scenario), MCP process leak, approval decoupled from the
   orchestrator process, `/approve` auth, stable hypothesis ids, agents in Docker, parallel `/demo/status`
   probes, CI, trimming this file, provider wording in root CLAUDE.md §6.
+
+## Critic fix + harness-leak fix + re-benchmark (2026-10-13) — implemented + tested; supersedes the benchmark numbers below
+Reading the abstained incidents' stored critic verdicts showed the cause: the critic demanded evidence no tool can return
+(stack traces, spans, CPU/mem), treated partial failure as a contradiction, and `get_git_diff` crashed on Windows
+(cp1252 decode) so the diff was missing. Fixes: git tool decodes UTF-8 (+test); critic prompt lists the real MCP tools
+(`AVAILABLE_TOOLS`, test keeps it in sync), may only request obtainable evidence, records the rest in
+`unobtainable_evidence`, and partial failure is not a contradiction; orchestrator stops the loop when the critic repeats
+a request or asks for nothing obtainable (`_stalled`, 3 tests). Found a **harness leak**: `/admin/*` calls were recorded
+in production logs/traces/metrics and the injected deployment was tagged `fault_injection`; both removed (+tests).
+**Clean benchmark** `evaluation/results/2026-10-13T17-28-19Z.json` (5 scenarios, 1 run/arm, 0 errors): single agent 80%
+correct / 2.4k tokens; full NEXUS 80% / 0 false / 0 abstained / 70k tokens / 51s; no critic 40% / 23k tokens. The no-critic
+drop is the Evidence Agent ranking "DB is healthy"-style statements first. The previous run (with the leak) had no-critic
+at 80% and full NEXUS at 40%, so results swing run to run; ONE run per arm cannot rank arms. Superseded reports are kept as
+`SUPERSEDED_*`. Cost: ~$0.07 per full benchmark (balance 0.81 -> 0.74). `/research` + `benchmark.json` refreshed.
+**Still open**: repeat runs (3x ~ $0.20) for variance; live recovery approve/execute/verify check; resource telemetry.
+
+## Research page `/research` (2026-10-13) — implemented; `tsc -b` clean; rendered in browser (desktop only, mobile not checked)
+Dashboard-only, separate from `/presentation`. `pages/ResearchPage.tsx` + `.module.css`, route in `App.tsx`, "Research"
+nav link. Sections: Research question (arms table + per-scenario outcomes from `src/data/benchmark.json`), Design
+sequence (11 steps from `orchestrator/investigation.py` + `recovery.py`), Safety net (8 layers + known gaps),
+Methodology (design, procedure, scenarios, measures, analysis plan, threats to validity), How it improved (9 fixes + before/after). Text enlarged after the user
+reported it was too small. Proposed arms show "Not yet measured". The benchmark JSON is a static copy; refresh it by
+hand after a new run.
 
 ## Presentation: Architecture section (2026-10-01) — implemented; `tsc -b` clean; checked in browser at desktop + 375px
 Dashboard-only. New `components/story/ArchitectureSection.tsx` + `Architecture.module.css`, inserted
