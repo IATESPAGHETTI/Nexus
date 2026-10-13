@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { motion } from "motion/react";
 import { useHashScroll } from "../lib/useHashScroll";
 import { SectionMarker } from "../components/story/StorySections";
@@ -32,7 +33,7 @@ function Head({ id, label, title, lead }: { id: string; label: string; title: st
 
 /* ---------------- 1. Research question ---------------- */
 
-type Arm = { name: string; agents: string; status: "built" | "proposed"; changes: string; where: string; key?: "single_agent_baseline" | "full_nexus" | "nexus_no_critic" };
+type Arm = { name: string; agents: string; status: "built" | "proposed"; changes: string; where: string; key?: "single_agent_baseline" | "full_nexus" | "nexus_no_critic" | "nexus_triage" };
 
 // "built" arms exist in evaluation/run_experiment.py today; "proposed" arms do not exist yet.
 const ARMS: Arm[] = [
@@ -62,10 +63,11 @@ const ARMS: Arm[] = [
   },
   {
     name: "Full NEXUS with triage",
+    key: "nexus_triage",
     agents: "2 to 4 specialists chosen from the symptom text, + Evidence + Critic",
     status: "built",
     changes: "The Incident Manager calls Metrics plus only the specialists the symptom points at (at least 2). Later rounds re-ask only the ones the Critic points at. This is the working form of \u201cfewer agents\u201d.",
-    where: "orchestrator/triage.py (not benchmarked yet)",
+    where: "orchestrator/triage.py",
   },
   {
     name: "Fewer specialists, fixed",
@@ -91,7 +93,7 @@ const METRICS: [string, string][] = [
   ["Cost", "Model calls and tool calls per run. Token cost is reported only where the provider returns it."],
 ];
 
-type ArmKey = "single_agent_baseline" | "full_nexus" | "nexus_no_critic";
+type ArmKey = "single_agent_baseline" | "full_nexus" | "nexus_no_critic" | "nexus_triage";
 const AGG = bench.aggregates as Record<ArmKey, Record<string, number | null>>;
 
 function ArmResult({ arm }: { arm: ArmKey }) {
@@ -123,6 +125,7 @@ function ResultsByScenario() {
     ["single_agent_baseline", "Single agent"],
     ["full_nexus", "Full NEXUS"],
     ["nexus_no_critic", "No critic"],
+    ["nexus_triage", "Triage"],
   ];
   return (
     <>
@@ -150,6 +153,7 @@ function ResultsByScenario() {
                       <span className={`${styles.chip} ${styles[OUTCOME_CLASS[x.outcome]]}`}>{x.outcome}</span>
                       <span className={styles.where}>
                         {x.predicted} · {Math.round(x.seconds)}s · {(x.tokens ?? 0).toLocaleString()} tok
+                        {x.specialists ? ` · ${x.specialists} specialists` : ""}
                       </span>
                     </td>
                   );
@@ -162,13 +166,13 @@ function ResultsByScenario() {
       <div className={styles.callout} style={{ marginTop: "1.5rem" }}>
         <span className={styles.calloutTag}>Reading it</span>
         <p>
-          With the test harness hidden from the evidence, full NEXUS matched the single agent on accuracy (80%) with no
-          false diagnoses, at about 30 times the tokens. Without the Critic accuracy fell to 40%: the Evidence Agent
-          often ranked a statement like &ldquo;the database is healthy&rdquo; first, which names no fault, and nothing
-          reviewed it. An earlier run, made before a harness leak was closed, showed the opposite result for the
-          Critic, so these numbers move from run to run and one run per arm cannot rank the arms. Resource exhaustion
-          was missed by the single agent and by full NEXUS. These faults are single-cause and deterministic, so none of
-          this shows that fewer agents would hold up on subtler incidents.
+          Every arm diagnosed four of the five faults. Full NEXUS missed resource exhaustion this run (it got it
+          right in the previous one), which is the only accuracy difference and is within run-to-run noise. Triage
+          called 3.2 specialists on average instead of 4, but cost more tokens overall (about 38,000 vs 33,000): it
+          saved 11 to 36 percent on three faults and cost about 75 percent more on the other two, where it called
+          everyone and ran longer Critic loops. So triage reduced agents without reducing cost here. A single model
+          call matched every arm on accuracy at roughly one thirteenth of the tokens. These faults are single-cause
+          and deterministic, so none of this shows that fewer agents would hold up on subtler incidents.
         </p>
       </div>
     </>
@@ -189,10 +193,11 @@ function ResearchQuestion() {
           <div className={styles.callout}>
             <span className={styles.calloutTag}>Status</span>
             <p>
-              <b>First measured run, {bench.timestamp.slice(0, 10)}.</b> Model <code>{bench.model}</code>, 5 scenarios, one
-              run per arm. This is directional, not statistically significant. In these runs the &ldquo;full&rdquo; and
-              &ldquo;no critic&rdquo; arms called all four specialists. Triage and the two proposed arms have not been
-              benchmarked, so they show no number. Values come from <code>evaluation/results/</code>.
+              <b>Measured {bench.timestamp.slice(0, 10)}.</b> Model <code>{bench.model}</code>, 5 scenarios, one
+              run per arm, on the merged code. This is directional, not statistically significant. The &ldquo;full&rdquo;
+              and &ldquo;no critic&rdquo; arms called all four specialists; the triage arm let the Incident Manager choose.
+              The leave-one-out arm has not been built, so it shows no number. Values come from{" "}
+              <code>evaluation/results/</code>.
             </p>
           </div>
         </Reveal>
@@ -378,7 +383,7 @@ const SCENARIOS: [string, string, string][] = [
 
 const DESIGN: [string, string, string][] = [
   ["Design", "Controlled comparison, within scenario", "Every arm is run on every scenario, so scenario difficulty cancels out."],
-  ["Independent variable", "The agent configuration (arm)", "Single agent, full NEXUS, no Critic. Built but not yet run: triage. Proposed: fixed fewer specialists, leave-one-out."],
+  ["Independent variable", "The agent configuration (arm)", "Single agent, full NEXUS, no Critic. Triage (now measured). Proposed: fixed fewer specialists, leave-one-out."],
   ["Dependent variables", "Accuracy, false diagnosis, abstention, time, cost", "Defined below, each with how it is computed."],
   ["Held constant", "Scenario, model, prompts, tools, loop cap", "Same live service, same runtime model, same MAX_REEVALUATION_LOOPS."],
   ["Blinding", "Agents never see ground truth", "Only run_experiment.py imports the scenario answers, and only after the run."],
@@ -647,7 +652,8 @@ function Improvements() {
         <div className={styles.callout} style={{ marginTop: "1.5rem" }}>
           <span className={styles.calloutTag}>Read with care</span>
           <p>
-            Both columns are one run per arm on five scenarios. The Critic fix and the harness-leak fix were finished
+            Both columns are one run per arm on five scenarios, and were measured on different code (the first before
+            the fixes, the second on the merged branch). The Critic fix and the harness-leak fix were finished
             between the two runs, so the gain cannot be split between them. One check isolates the Critic fix: on the
             bad-deployment scenario, before the leak was closed, the same arm went from abstaining after 31 calls and
             104,000 tokens to a correct diagnosis in 10 calls and 30,000 tokens. The no-critic arm moved the opposite
@@ -661,6 +667,13 @@ function Improvements() {
 
 export function ResearchPage() {
   useHashScroll();
+  useEffect(() => {
+    const previous = document.body.style.backgroundColor;
+    document.body.style.backgroundColor = "#ffffff";
+    return () => {
+      document.body.style.backgroundColor = previous;
+    };
+  }, []);
   return (
     <div className={styles.page}>
       <header className={styles.hero}>

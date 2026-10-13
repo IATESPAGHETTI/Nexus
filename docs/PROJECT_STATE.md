@@ -1,5 +1,18 @@
 # NEXUS Project State
 
+## Triage arm benchmarked on the merged code + research page fixes (2026-10-13)
+`evaluation/run_experiment.py` now has a 4th arm `nexus_triage` (Incident Manager triage picks the specialists; the other NEXUS
+arms force all four via `agent_names`) and records `agents_consulted`. Report `evaluation/results/2026-10-13T18-25-37Z.json`
+(gitignored; numbers copied to `dashboard/src/data/benchmark.json`): 5 faults, 1 run per arm, 0 errors, deepseek-chat.
+Accuracy: single agent 100% (2.5k tokens), full NEXUS 80% (33k; missed resource_exhaustion this run), no critic 100% (29k),
+triage 100% (38k, 3.2 specialists on average). Triage called fewer specialists but cost MORE tokens overall: -36%, -11%, -14%
+on three faults, +76% on config_error and resource_exhaustion (called all four + longer critic loops). Differences in accuracy
+are one fault = noise. Not comparable with the earlier tables (different code). Cost: balance 0.73 -> 0.68 (~5 cents).
+**Research page was black when scrolled** in the embedded browser (also on /presentation): fixed on /research by removing the
+`overflow-x: clip` page wrapper, giving every section its own background and setting the body colour while mounted; checked in
+the pane. `/presentation` still shows it and was NOT changed.
+**Still open**: repeat runs for variance; leave-one-out arm; live recovery check; resource telemetry in the simulation.
+
 ## Merge of `claude/research-questions-architecture-e9382f` into the improvements branch (2026-10-13)
 Both branches had independently built the same token accounting, git UTF-8 fix, `/admin/reset`, hidden admin calls, MCP
 close-after-task and an evidence-limits critic prompt. Kept THEIRS for all of those (`usage_tally`, `budget`, critic EVIDENCE

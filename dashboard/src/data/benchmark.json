@@ -1,40 +1,55 @@
 {
- "timestamp": "2026-10-13T17:28:19Z",
+ "timestamp": "2026-10-13T18:25:37Z",
  "model": "deepseek/deepseek-chat",
  "classification": "official_nexus_benchmark",
  "aggregates": {
   "single_agent_baseline": {
+   "runs_with_token_data": 5,
+   "avg_llm_calls": 1.0,
+   "avg_total_tokens": 2484,
    "total_runs": 5,
-   "root_cause_accuracy": 0.8,
+   "root_cause_accuracy": 1.0,
    "false_diagnosis_rate": 0.0,
    "abstention_rate": 0.0,
-   "diagnosis_rate": 0.8,
-   "avg_latency_seconds": 9.825,
-   "errored_runs": 0,
-   "avg_total_tokens": 2370.8,
-   "avg_llm_calls": 1.0
+   "diagnosis_rate": 1.0,
+   "avg_latency_seconds": 1.515,
+   "errored_runs": 0
   },
   "full_nexus": {
+   "runs_with_token_data": 5,
+   "avg_llm_calls": 10.8,
+   "avg_total_tokens": 33180,
    "total_runs": 5,
    "root_cause_accuracy": 0.8,
    "false_diagnosis_rate": 0.0,
    "abstention_rate": 0.0,
    "diagnosis_rate": 0.8,
-   "avg_latency_seconds": 51.288,
-   "errored_runs": 0,
-   "avg_total_tokens": 70255.2,
-   "avg_llm_calls": 18.8
+   "avg_latency_seconds": 20.574,
+   "errored_runs": 0
   },
   "nexus_no_critic": {
+   "runs_with_token_data": 5,
+   "avg_llm_calls": 10.0,
+   "avg_total_tokens": 29322,
    "total_runs": 5,
-   "root_cause_accuracy": 0.4,
+   "root_cause_accuracy": 1.0,
    "false_diagnosis_rate": 0.0,
    "abstention_rate": 0.0,
-   "diagnosis_rate": 0.4,
-   "avg_latency_seconds": 21.459,
-   "errored_runs": 0,
-   "avg_total_tokens": 23039.6,
-   "avg_llm_calls": 9.2
+   "diagnosis_rate": 1.0,
+   "avg_latency_seconds": 18.141,
+   "errored_runs": 0
+  },
+  "nexus_triage": {
+   "runs_with_token_data": 5,
+   "avg_llm_calls": 10.8,
+   "avg_total_tokens": 38327,
+   "total_runs": 5,
+   "root_cause_accuracy": 1.0,
+   "false_diagnosis_rate": 0.0,
+   "abstention_rate": 0.0,
+   "diagnosis_rate": 1.0,
+   "avg_latency_seconds": 23.419,
+   "errored_runs": 0
   }
  },
  "runs": [
@@ -43,20 +58,30 @@
    "single_agent_baseline": {
     "predicted": "bad_deployment",
     "outcome": "correct",
-    "seconds": 9.581,
-    "tokens": 2484
+    "seconds": 1.174,
+    "tokens": 2612,
+    "specialists": null
    },
    "full_nexus": {
     "predicted": "bad_deployment",
     "outcome": "correct",
-    "seconds": 25.436,
-    "tokens": 30320
+    "seconds": 23.926,
+    "tokens": 41659,
+    "specialists": 4
    },
    "nexus_no_critic": {
-    "predicted": "unknown",
-    "outcome": "no diagnosis",
-    "seconds": 21.04,
-    "tokens": 28328
+    "predicted": "bad_deployment",
+    "outcome": "correct",
+    "seconds": 17.476,
+    "tokens": 27164,
+    "specialists": 4
+   },
+   "nexus_triage": {
+    "predicted": "bad_deployment",
+    "outcome": "correct",
+    "seconds": 18.552,
+    "tokens": 26758,
+    "specialists": 3
    }
   },
   {
@@ -64,20 +89,30 @@
    "single_agent_baseline": {
     "predicted": "db_slowdown",
     "outcome": "correct",
-    "seconds": 9.695,
-    "tokens": 2391
+    "seconds": 1.607,
+    "tokens": 2402,
+    "specialists": null
    },
    "full_nexus": {
     "predicted": "db_slowdown",
     "outcome": "correct",
-    "seconds": 25.848,
-    "tokens": 24679
+    "seconds": 19.138,
+    "tokens": 34445,
+    "specialists": 4
    },
    "nexus_no_critic": {
     "predicted": "db_slowdown",
     "outcome": "correct",
-    "seconds": 21.206,
-    "tokens": 20358
+    "seconds": 17.857,
+    "tokens": 19162,
+    "specialists": 4
+   },
+   "nexus_triage": {
+    "predicted": "db_slowdown",
+    "outcome": "correct",
+    "seconds": 17.729,
+    "tokens": 30729,
+    "specialists": 3
    }
   },
   {
@@ -85,20 +120,30 @@
    "single_agent_baseline": {
     "predicted": "config_error",
     "outcome": "correct",
-    "seconds": 9.892,
-    "tokens": 2147
+    "seconds": 1.24,
+    "tokens": 2538,
+    "specialists": null
    },
    "full_nexus": {
     "predicted": "config_error",
     "outcome": "correct",
-    "seconds": 58.245,
-    "tokens": 108870
+    "seconds": 19.107,
+    "tokens": 29464,
+    "specialists": 4
    },
    "nexus_no_critic": {
-    "predicted": "unknown",
-    "outcome": "no diagnosis",
-    "seconds": 21.942,
-    "tokens": 25784
+    "predicted": "config_error",
+    "outcome": "correct",
+    "seconds": 17.696,
+    "tokens": 45775,
+    "specialists": 4
+   },
+   "nexus_triage": {
+    "predicted": "config_error",
+    "outcome": "correct",
+    "seconds": 20.287,
+    "tokens": 51815,
+    "specialists": 4
    }
   },
   {
@@ -106,41 +151,61 @@
    "single_agent_baseline": {
     "predicted": "dependency_failure",
     "outcome": "correct",
-    "seconds": 9.82,
-    "tokens": 2414
+    "seconds": 1.574,
+    "tokens": 2442,
+    "specialists": null
    },
    "full_nexus": {
     "predicted": "dependency_failure",
     "outcome": "correct",
-    "seconds": 86.772,
-    "tokens": 127575
+    "seconds": 20.316,
+    "tokens": 26336,
+    "specialists": 4
    },
    "nexus_no_critic": {
-    "predicted": "unknown",
-    "outcome": "no diagnosis",
-    "seconds": 21.73,
-    "tokens": 21277
+    "predicted": "dependency_failure",
+    "outcome": "correct",
+    "seconds": 19.03,
+    "tokens": 23064,
+    "specialists": 4
+   },
+   "nexus_triage": {
+    "predicted": "dependency_failure",
+    "outcome": "correct",
+    "seconds": 15.903,
+    "tokens": 22605,
+    "specialists": 2
    }
   },
   {
    "scenario": "FI-resource-exhaustion",
    "single_agent_baseline": {
-    "predicted": "unknown",
-    "outcome": "no diagnosis",
-    "seconds": 10.135,
-    "tokens": 2418
+    "predicted": "resource_exhaustion",
+    "outcome": "correct",
+    "seconds": 1.98,
+    "tokens": 2426,
+    "specialists": null
    },
    "full_nexus": {
     "predicted": "unknown",
     "outcome": "no diagnosis",
-    "seconds": 60.137,
-    "tokens": 59832
+    "seconds": 20.382,
+    "tokens": 33998,
+    "specialists": 4
    },
    "nexus_no_critic": {
     "predicted": "resource_exhaustion",
     "outcome": "correct",
-    "seconds": 21.378,
-    "tokens": 19451
+    "seconds": 18.644,
+    "tokens": 31445,
+    "specialists": 4
+   },
+   "nexus_triage": {
+    "predicted": "resource_exhaustion",
+    "outcome": "correct",
+    "seconds": 44.622,
+    "tokens": 59727,
+    "specialists": 4
    }
   }
  ]

@@ -1,11 +1,11 @@
-.page { background: var(--lt-bg); color: var(--lt-ink); font-family: var(--nx-font-ui); overflow-x: clip; }
+.page { min-height: 100vh; background: var(--lt-bg); color: var(--lt-ink); font-family: var(--nx-font-ui); }
 .container {
   width: 100%;
   max-width: calc(var(--lt-container) + var(--lt-pad-x) * 2);
   margin: 0 auto;
   padding: 0 var(--lt-pad-x);
 }
-.hero { padding: 9rem 0 4rem; }
+.hero { padding: 9rem 0 4rem; background: var(--lt-bg); }
 .eyebrow { font-family: var(--nx-font-mono); font-size: 0.9rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--lt-brand); }
 .hero h1 { max-width: 52rem; margin: 1rem 0; font-size: clamp(2.25rem, 5vw, 3.75rem); font-weight: 500; line-height: 1.04; letter-spacing: -0.035em; }
 .hero p { max-width: 38rem; font-size: 1.25rem; line-height: 1.55; color: var(--lt-ink-2); }
@@ -13,7 +13,7 @@
 .toc a { padding: 0.5rem 1rem; border: 1px solid var(--lt-border-strong); border-radius: 999px; font-size: 1rem; color: var(--lt-ink); text-decoration: none; }
 .toc a:hover { border-color: var(--lt-brand); color: var(--lt-brand); }
 
-.section { padding: var(--lt-section-y) 0; border-top: 1px solid var(--lt-border); scroll-margin-top: 4rem; }
+.section { padding: var(--lt-section-y) 0; border-top: 1px solid var(--lt-border); scroll-margin-top: 4rem; background: var(--lt-bg); }
 .alt { background: var(--lt-bg-alt); }
 .title { max-width: 52rem; margin-bottom: 3rem; font-size: clamp(1.75rem, 4vw, 2.75rem); font-weight: 500; line-height: 1.08; letter-spacing: -0.03em; }
 .title span { color: var(--lt-ink-2); font-weight: 400; }
