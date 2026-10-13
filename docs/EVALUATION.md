@@ -43,12 +43,8 @@ provider value; no quota or token number is inferred)
 
 ## Status
 
-Phase 9's fault scenarios, injector, three-arm benchmark runner, and pure
-scoring tests are implemented. The runner executes five controlled scenarios
-and writes the raw per-run records plus aggregates to `evaluation/results/`.
-
-The first complete live benchmark has not yet been recorded. It is blocked by
-the Groq account's exhausted daily token quota (TPD 200000), not substituted
-with synthetic output. When quota headroom is available, start the full stack
-and run `.venv-orchestrator/Scripts/python evaluation/run_experiment.py`.
-Report the generated JSON as the only source for measured evaluation values.
+First complete live benchmark recorded 2026-10-13 (numbers and the three discarded earlier runs are in
+`docs/PROJECT_STATE.md`). One run per arm per scenario, so results are directional. NEXUS arms are scored on the
+Evidence Agent's structured `fault_class`; every arm gets a full production reset, fault injection and 30 customer
+requests first. Token counts are provider-reported; dollar cost and quota are not computed. Run:
+`.venv-orchestrator/Scripts/python evaluation/run_experiment.py` (paid: about 15 model-heavy runs).
