@@ -51,6 +51,10 @@ class MetricsStore:
             stats = self._by_endpoint.setdefault(endpoint, EndpointStats())
             stats.record(duration_ms, is_error)
 
+    def clear(self) -> None:
+        with self._lock:
+            self._by_endpoint.clear()
+
     def snapshot(self) -> dict:
         with self._lock:
             total_count = sum(s.count for s in self._by_endpoint.values())
@@ -67,6 +71,10 @@ class LogStore:
         self._lock = Lock()
         self._entries: Deque[dict] = deque(maxlen=maxlen)
 
+    def clear(self) -> None:
+        with self._lock:
+            self._entries.clear()
+
     def add(self, entry: dict) -> None:
         with self._lock:
             self._entries.append(entry)
@@ -80,6 +88,10 @@ class TraceStore:
     def __init__(self, maxlen: int = 100) -> None:
         self._lock = Lock()
         self._traces: Deque[dict] = deque(maxlen=maxlen)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._traces.clear()
 
     def add(self, trace: dict) -> None:
         with self._lock:
@@ -101,6 +113,10 @@ class QueryStore:
     def __init__(self, maxlen: int = 200) -> None:
         self._lock = Lock()
         self._queries: Deque[dict] = deque(maxlen=maxlen)
+
+    def clear(self) -> None:
+        with self._lock:
+            self._queries.clear()
 
     def add(self, query: dict) -> None:
         with self._lock:

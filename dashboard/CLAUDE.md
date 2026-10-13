@@ -63,8 +63,10 @@ both, kept for accurate history.)
   `MCPActivityPanel`, `HypothesisPanel` (selector + `HypothesisConstellation`,
   the evidence<->hypothesis spatial centerpiece + `RevisionBanner`),
   `CriticChallengePanel`, `ReEvaluationLoopIndicator`, `DecisionPanel`
-  (diagnosis/abstention), `UsagePanel` (designed "Unavailable from provider"
-  empty state — no token/usage data exists anywhere in the pipeline yet),
+  (diagnosis/abstention), `UsagePanel` (2026-10-10: renders the real
+  `incident.token_usage` — model calls/tokens vs NEXUS's own limits, per-agent
+  usage, a warning when a limit stopped the run; empty state when none recorded;
+  provider quota is still always "Unavailable from provider"),
   `RecoveryPanel` (Phase 8, real — renders `incident.recovery_plan`/
   `approval_state`/`action_history` plus whichever real recovery-related
   events have actually been emitted; an honest neutral empty state, never
@@ -135,3 +137,10 @@ on click-through glass cards. Fixed two real drift bugs caught while wiring
 (`RECOVERY_PLAN_CREATED`, `SAFETY_CHECK`, etc., and a missing `RESOLVED`
 status) instead of the real names `orchestrator/recovery.py` actually emits
 — corrected to match source, not the earlier docs draft.
+
+## 2026-10-13
+- Live section re-themed LIGHT: `story/LiveBand.module.css` overrides the shared `--nx-*` tokens under `.band`.
+- New: `command_center/AgentFlow` (animated flow map; states from real events), `AgentConversation` (requests and
+  callbacks from `lib/conversation.ts`), `PlainEnglishBox` (+ `lib/glossary.ts`; words listed only if they appear in the
+  incident text), `lib/scenarios.ts` (five failures + blind symptoms), `story/FailuresSection` and `story/FixesSection`.
+- Inject flow: `resetShop()` first, then traffic, then inject. Event type `AGENTS_SELECTED` added to `api/types.ts`.

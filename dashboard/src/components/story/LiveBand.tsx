@@ -8,14 +8,13 @@ import styles from "./LiveBand.module.css";
 const EASE = [0.16, 1, 0.3, 1] as const;
 
 /**
- * Full-bleed dark band, like the dark product screenshots in the reference's
- * light page. Everything inside reads real backend state (or says it can't).
+ * Full-bleed light band matching the rest of the page. Everything inside reads real backend state (or says it can't).
  */
 export function LiveBand({ withPipeline = true }: { withPipeline?: boolean }) {
   return (
     <section id="pl-live" className={styles.band}>
       <div className={styles.inner}>
-        <SectionMarker dark label="The live system" />
+        <SectionMarker label="The live system" />
         <motion.h2
           className={styles.title}
           initial={{ opacity: 0, y: 24 }}

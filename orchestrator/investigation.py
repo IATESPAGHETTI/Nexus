@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -38,7 +39,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import event_bridge  # noqa: E402
 import recovery  # noqa: E402
+from budget import IncidentBudget  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
+import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
@@ -65,7 +68,62 @@ def _leading_hypothesis(hypotheses: list[dict]) -> dict | None:
     return max(open_ones, key=lambda h: h.get("confidence", 0.0))
 
 
-async def _dispatch_diagnostic_agents(incident_id: str, question: str, agent_names: list[str]) -> dict:
+_SAME_THEORY_OVERLAP = 0.5
+_WORD_RE = re.compile(r"[a-z0-9_]{3,}")
+
+
+def _words(statement: str | None) -> set[str]:
+    return set(_WORD_RE.findall((statement or "").lower()))
+
+
+def reconcile_hypotheses(previous: list[dict], new: list[dict]) -> list[dict]:
+    """Gives a re-proposed theory the SAME id across rounds (root CLAUDE.md section 12:
+    revision history). The Evidence Agent renumbers H1, H2... on every call, so without
+    this a hypothesis_id is not a stable identity. Pure code, no model: a new hypothesis
+    inherits the id of the previous one whose statement shares at least half its words
+    (best matches first, one-to-one); it then records `revision` (previous + 1) and
+    `previous_confidence`. Unmatched hypotheses get a fresh id that collides with none.
+    Mutates and returns `new`."""
+    if not previous:
+        return new
+    candidates = []
+    for i, n in enumerate(new):
+        nw = _words(n.get("statement"))
+        for j, p in enumerate(previous):
+            pw = _words(p.get("statement"))
+            if nw and pw:
+                overlap = len(nw & pw) / len(nw | pw)
+                if overlap >= _SAME_THEORY_OVERLAP:
+                    candidates.append((overlap, i, j))
+    used_new: set[int] = set()
+    used_prev: set[int] = set()
+    for _, i, j in sorted(candidates, key=lambda c: -c[0]):
+        if i in used_new or j in used_prev:
+            continue
+        used_new.add(i)
+        used_prev.add(j)
+        new[i]["hypothesis_id"] = previous[j].get("hypothesis_id")
+        new[i]["revision"] = int(previous[j].get("revision", 1)) + 1
+        new[i]["previous_confidence"] = previous[j].get("confidence")
+    taken = {h.get("hypothesis_id") for h in previous} | {new[i].get("hypothesis_id") for i in used_new}
+    counter = 1
+    for i, n in enumerate(new):
+        if i in used_new:
+            continue
+        while f"H{counter}" in taken:
+            counter += 1
+        n["hypothesis_id"] = f"H{counter}"
+        taken.add(n["hypothesis_id"])
+    return new
+
+
+def _persist_usage(incident_id: str, budget: IncidentBudget) -> None:
+    event_bridge.update_state(incident_id, token_usage=budget.snapshot())
+
+
+async def _dispatch_diagnostic_agents(
+    incident_id: str, question: str, agent_names: list[str], budget: IncidentBudget
+) -> dict:
     for name in agent_names:
         event_bridge.emit_event(incident_id, "AGENT_STARTED", source="incident_manager", target=name)
 
@@ -73,6 +131,9 @@ async def _dispatch_diagnostic_agents(incident_id: str, question: str, agent_nam
 
     for name in result["agents_responded"]:
         finding = result["findings"][name]
+        # Usage is bookkeeping, not evidence: take it off the Finding so it is
+        # neither stored as agent_findings nor sent on to the Evidence Agent.
+        budget.record(name, finding.pop("usage", None))
         a2a_meta = result["a2a"].get(name, {})
         event_bridge.emit_event(
             incident_id,
@@ -125,10 +186,13 @@ async def _dispatch_diagnostic_agents(incident_id: str, question: str, agent_nam
             payload={"reason": "no A2A response (Groq rate limit or agent unavailable)"},
         )
 
+    _persist_usage(incident_id, budget)
     return result
 
 
-async def _call_evidence_agent(incident_id: str, findings_by_agent: dict) -> list[dict]:
+async def _call_evidence_agent(
+    incident_id: str, findings_by_agent: dict, budget: IncidentBudget, previous: list[dict] | None = None
+) -> list[dict]:
     call = await call_remote_agent(EVIDENCE_AGENT_NAME, EVIDENCE_AGENT_DESCRIPTION, json.dumps(findings_by_agent))
     event_bridge.emit_event(
         incident_id,
@@ -139,15 +203,18 @@ async def _call_evidence_agent(incident_id: str, findings_by_agent: dict) -> lis
         payload={"task_id": call["task_id"], "context_id": call["context_id"]},
     )
     response = call["response"] if isinstance(call["response"], dict) else {}
+    budget.record(EVIDENCE_AGENT_NAME, response.pop("usage", None))
+    _persist_usage(incident_id, budget)
     hypotheses = response.get("hypotheses", [])
     if not isinstance(hypotheses, list):
         hypotheses = []
+    reconcile_hypotheses(previous or [], hypotheses)
     for hypothesis in hypotheses:
         event_bridge.emit_event(incident_id, "HYPOTHESIS_CREATED", source=EVIDENCE_AGENT_NAME, payload=hypothesis)
     return hypotheses
 
 
-async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[dict]) -> dict:
+async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[dict], budget: IncidentBudget) -> dict:
     payload = {"hypothesis": hypothesis, "evidence_pool": evidence_pool}
     call = await call_remote_agent(CRITIC_AGENT_NAME, CRITIC_AGENT_DESCRIPTION, json.dumps(payload))
     event_bridge.emit_event(
@@ -159,6 +226,8 @@ async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[d
         payload={"task_id": call["task_id"], "context_id": call["context_id"]},
     )
     critique = call["response"] if isinstance(call["response"], dict) else None
+    budget.record(CRITIC_AGENT_NAME, critique.pop("usage", None) if critique else None)
+    _persist_usage(incident_id, budget)
     if not critique:
         critique = {
             "critique_id": None,
@@ -179,6 +248,7 @@ async def run_investigation(
     trigger_recovery: bool = True,
     skip_critic: bool = False,
     incident_id: str | None = None,
+    budget: IncidentBudget | None = None,
 ) -> dict:
     """Runs the full Phase 6 investigation and returns the final persisted
     incident state (fetched back from the backend, not an in-memory copy).
@@ -194,28 +264,50 @@ async def run_investigation(
     (e.g. `backend/app/main.py`'s `/demo/investigate`, so the dashboard can
     redirect to the incident before the investigation itself finishes)
     instead of creating a new one -- the incident must already exist in
-    `backend/`."""
+    `backend/`. `budget` (default: limits read from the environment, see
+    `orchestrator/budget.py`): once it reports the call/token limit reached,
+    no further model-backed step starts and the investigation ABSTAINS with
+    the budget named as the reason -- it never forces a diagnosis."""
     max_loops = MAX_REEVALUATION_LOOPS if max_loops is None else max_loops
-    agent_names = agent_names or list(DIAGNOSTIC_AGENTS)
+    # `agent_names` given = the caller forces exactly this set (no triage).
+    # Otherwise the Incident Manager triages: only agents the report points at
+    # are called (set NEXUS_TRIAGE=0 to always call all four).
+    forced = bool(agent_names)
+    available = list(agent_names) if forced else list(DIAGNOSTIC_AGENTS)
+    use_triage = not forced and os.environ.get("NEXUS_TRIAGE", "1") != "0"
+    budget = budget or IncidentBudget.from_env()
 
     incident_id = incident_id or event_bridge.create_incident(incident_description)
     event_bridge.emit_event(
         incident_id, "INCIDENT_CREATED", source="incident_manager", payload={"description": incident_description}
     )
 
-    dispatch = await _dispatch_diagnostic_agents(incident_id, incident_description, agent_names)
+    if use_triage:
+        agent_names, skipped = triage.select_agents(incident_description, available)
+    else:
+        agent_names, skipped = available, []
+    event_bridge.emit_event(
+        incident_id, "AGENTS_SELECTED", source="incident_manager", payload=triage.describe(agent_names, skipped, 1)
+    )
+
+    dispatch = await _dispatch_diagnostic_agents(incident_id, incident_description, agent_names, budget)
     findings_by_agent = dispatch["findings"]
     event_bridge.update_state(incident_id, agent_findings=findings_by_agent, agent_messages=dispatch["a2a"])
 
-    hypotheses = await _call_evidence_agent(incident_id, findings_by_agent)
-    event_bridge.update_state(incident_id, hypotheses=hypotheses)
-
     decision = None
     reason = None
+    hypotheses: list[dict] = []
     critic_results: list[dict] = []
     loops_used = 0
 
-    if skip_critic:
+    stop = budget.exceeded()
+    if stop:
+        decision, reason = "ABSTAINED", f"{stop} -- stopped before evidence synthesis"
+    else:
+        hypotheses = await _call_evidence_agent(incident_id, findings_by_agent, budget)
+        event_bridge.update_state(incident_id, hypotheses=hypotheses)
+
+    if skip_critic and decision is None:
         leading = _leading_hypothesis(hypotheses)
         loops_used = 1
         if leading is None:
@@ -236,7 +328,11 @@ async def run_investigation(
                 incident_id, "DIAGNOSIS_REACHED", source="incident_manager", payload={"hypothesis": leading, "critique": synthetic_critique}
             )
 
-    for loop_index in range(1, max_loops + 1) if not skip_critic else ():
+    for loop_index in range(1, max_loops + 1) if (not skip_critic and decision is None) else ():
+        stop = budget.exceeded()
+        if stop:
+            decision, reason = "ABSTAINED", f"{stop} -- stopped before critic review"
+            break
         loops_used = loop_index
         leading = _leading_hypothesis(hypotheses)
         if leading is None:
@@ -251,7 +347,7 @@ async def run_investigation(
             payload={"loop": loop_index, "max_loops": max_loops},
         )
         evidence_pool = _flatten_evidence(findings_by_agent)
-        critique = await _call_critic(incident_id, leading, evidence_pool)
+        critique = await _call_critic(incident_id, leading, evidence_pool, budget)
         critic_results.append(critique)
         verdict = critique.get("verdict", "INSUFFICIENT_EVIDENCE")
 
@@ -291,7 +387,12 @@ async def run_investigation(
         )
 
         if loop_index == max_loops:
-            break  # no budget left to re-dispatch; falls through to the abstain path below
+            break  # no loops left to re-dispatch; falls through to the abstain path below
+
+        stop = budget.exceeded()
+        if stop:
+            decision, reason = "ABSTAINED", f"{stop} -- stopped before requesting more evidence"
+            break
 
         follow_up = (
             f"Re-investigate incident: {incident_description}. The root-cause critic "
@@ -299,12 +400,20 @@ async def run_investigation(
             f"{critique.get('requested_evidence', [])}. Missing evidence noted: "
             f"{leading.get('missing_evidence', [])}."
         )
-        more = await _dispatch_diagnostic_agents(incident_id, follow_up, agent_names)
+        if use_triage:
+            ask_text = f"{critique.get('requested_evidence', [])} {leading.get('missing_evidence', [])}"
+            again, skipped_again = triage.select_agents(ask_text, available, first_round=False)
+            event_bridge.emit_event(
+                incident_id, "AGENTS_SELECTED", source="incident_manager", payload=triage.describe(again, skipped_again, loop_index + 1)
+            )
+        else:
+            again = agent_names
+        more = await _dispatch_diagnostic_agents(incident_id, follow_up, again, budget)
         for name, finding in more["findings"].items():
             findings_by_agent[name] = finding  # latest finding per agent supersedes the prior one
         event_bridge.update_state(incident_id, agent_findings=findings_by_agent)
 
-        hypotheses = await _call_evidence_agent(incident_id, findings_by_agent)
+        hypotheses = await _call_evidence_agent(incident_id, findings_by_agent, budget, previous=hypotheses)
         event_bridge.update_state(incident_id, hypotheses=hypotheses, critic_results=critic_results)
 
     if decision is None:
@@ -316,16 +425,26 @@ async def run_investigation(
             incident_id, "ABSTENTION", source="incident_manager", payload={"reason": reason, "loops_used": loops_used}
         )
 
+    decision_record = {"outcome": decision, "reason": reason, "loops_used": loops_used, "max_loops": max_loops}
     event_bridge.update_state(
         incident_id,
         status=decision,
         hypotheses=hypotheses,
         critic_results=critic_results,
-        decision={"outcome": decision, "reason": reason, "loops_used": loops_used, "max_loops": max_loops},
+        decision=decision_record,
+        token_usage=budget.snapshot(),
     )
     event_bridge.emit_event(incident_id, "INCIDENT_STATUS_CHANGED", source="incident_manager", payload={"status": decision})
 
     if decision == "DIAGNOSED" and trigger_recovery:
+        stop = budget.exceeded()
+        if stop:
+            # The diagnosis stands; only the (model-backed) recovery proposal is
+            # withheld, and the decision says so instead of failing silently.
+            event_bridge.update_state(
+                incident_id, decision={**decision_record, "reason": f"{reason}; recovery not started: {stop}"}
+            )
+            return event_bridge.get_incident(incident_id)
         # Phase 8: bounded recovery flow (propose -> validate -> human
         # approval -> execute -> verify). Never runs for ABSTAINED -- there
         # is nothing diagnosed to recover from. `leading`/critic_results[-1]

@@ -80,7 +80,7 @@ async def test_logs_traces_agent_investigates_with_allowed_tools_only():
 async def test_change_analysis_agent_investigates_with_allowed_tools_only():
     finding = await change_analysis_agent_mod.investigate()
     _assert_valid_finding(
-        finding, "change_analysis_agent", {"get_recent_deployments", "get_git_diff"}
+        finding, "change_analysis_agent", {"get_recent_deployments"}
     )
 
 

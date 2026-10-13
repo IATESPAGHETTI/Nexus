@@ -10,6 +10,9 @@ import {
 } from "../components/story/StorySections";
 import { SolutionCompare } from "../components/story/SolutionCompare";
 import { AgentBento } from "../components/story/AgentBento";
+import { ArchitectureSection } from "../components/story/ArchitectureSection";
+import { FailuresSection } from "../components/story/FailuresSection";
+import { FixesSection } from "../components/story/FixesSection";
 import { LiveBand } from "../components/story/LiveBand";
 import styles from "../components/story/Story.module.css";
 
@@ -25,6 +28,9 @@ export function PresentationPage() {
       <StatementReveal />
       <SolutionCompare />
       <AgentBento />
+      <ArchitectureSection />
+      <FailuresSection />
+      <FixesSection />
       <StepsRail />
       <LiveBand />
       <FinalCta onClick={goLive} />

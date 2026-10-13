@@ -54,6 +54,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "guardrails"))
 import event_bridge  # noqa: E402
 import executor as guardrails_executor  # noqa: E402
 import policy as guardrails_policy  # noqa: E402
+import remedy as guardrails_remedy  # noqa: E402
 from config import APPROVAL_POLL_INTERVAL_SECONDS, MAX_APPROVAL_WAIT_SECONDS, PRODUCTION_BASE_URL  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 
@@ -72,6 +73,11 @@ _PROBE_PATHS = ("/orders", "/orders/1")  # /orders/{id} also exercises the depen
 
 async def _call_recovery_agent(incident_id: str, hypothesis: dict, critique: dict, evidence_pool: list[dict]) -> dict:
     payload = {"hypothesis": hypothesis, "critique": critique, "evidence_pool": evidence_pool}
+    # Deterministic, evidence-derived hint: which actions fix the symptoms the
+    # evidence shows (guardrails/remedy.py). The same check re-validates the plan.
+    remedy_guidance = guardrails_remedy.guidance(evidence_pool)
+    if remedy_guidance:
+        payload["remedy_guidance"] = remedy_guidance
     call = await call_remote_agent(RECOVERY_AGENT_NAME, RECOVERY_AGENT_DESCRIPTION, json.dumps(payload))
     event_bridge.emit_event(
         incident_id,
@@ -179,7 +185,7 @@ async def run_recovery(incident_id: str, hypothesis: dict, critique: dict, evide
     """
     plan = await _call_recovery_agent(incident_id, hypothesis, critique, evidence_pool or [])
 
-    validation = guardrails_policy.validate_plan(plan)
+    validation = guardrails_policy.validate_plan(plan, evidence_pool=evidence_pool or [])
     event_bridge.emit_event(
         incident_id, "SAFETY_VALIDATION", source="guardrails", target=plan.get("plan_id"), payload=validation
     )
@@ -207,6 +213,12 @@ async def run_recovery(incident_id: str, hypothesis: dict, critique: dict, evide
 
     event_bridge.emit_event(incident_id, "HUMAN_APPROVAL_GRANTED", source="human", payload={"plan_id": plan.get("plan_id")})
 
+    return await _execute_and_verify(incident_id, plan, validation, approval)
+
+
+async def _execute_and_verify(incident_id: str, plan: dict, validation: dict, approval: dict) -> dict:
+    """Everything after a human approved: execute (kill-switch-gated), verify with the live probe,
+    resolve only on verified success. Shared by the normal flow and a late-approval resume."""
     execution = guardrails_executor.execute_plan(plan)
     event_bridge.emit_event(incident_id, "RECOVERY_EXECUTED", source="guardrails", payload=execution)
     event_bridge.update_state(incident_id, action_history=execution["action_history"])
@@ -239,3 +251,27 @@ async def run_recovery(incident_id: str, hypothesis: dict, critique: dict, evide
         "execution": execution,
         "verification": verification,
     }
+
+
+async def resume_approved_recovery(incident_id: str) -> dict:
+    """Late approval: the approval window closed (the orchestrator process exited,
+    approval_state EXPIRED) but a human later approved the SAVED plan. Re-checks the
+    plan from scratch against the guardrails -- the saved plan is not trusted -- then
+    runs the same execute -> verify path. Only ever acts on an incident whose
+    approval_state is a real human APPROVED decision."""
+    incident = event_bridge.get_incident(incident_id)
+    plan = incident.get("recovery_plan")
+    approval = incident.get("approval_state") or {}
+    if not isinstance(plan, dict) or approval.get("decision") != "APPROVED":
+        return {"outcome": "NOTHING_TO_RESUME"}
+
+    evidence_pool = [
+        item for finding in (incident.get("agent_findings") or {}).values() for item in (finding.get("evidence") or [])
+    ]
+    validation = guardrails_policy.validate_plan(plan, evidence_pool=evidence_pool)
+    event_bridge.emit_event(
+        incident_id, "SAFETY_VALIDATION", source="guardrails", target=plan.get("plan_id"), payload=validation
+    )
+    if validation["verdict"] == "REJECTED":
+        return {"outcome": "REJECTED_BY_SAFETY_VALIDATION", "plan": plan, "validation": validation}
+    return await _execute_and_verify(incident_id, plan, validation, approval)

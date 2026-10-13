@@ -4,13 +4,14 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { approveRecoveryPlan } from "../../api/client";
 import type { IncidentState, NexusEvent } from "../../api/types";
 import {
-  PIPELINE_AGENTS,
   orderEvents,
   type CommandCenterModel,
   type EvidenceLine,
-  type NodeStatus,
   type RecoveryStage,
 } from "../../lib/presentation";
+import { AgentFlow } from "./AgentFlow";
+import { AgentConversation } from "./AgentConversation";
+import { PlainEnglishBox } from "./PlainEnglishBox";
 import styles from "./IncidentHumanCard.module.css";
 
 interface Props {
@@ -26,20 +27,6 @@ const STATUS_HEADLINE: Record<CommandCenterModel["status"], string> = {
   DIAGNOSED: "Root cause supported",
   ABSTAINED: "NEXUS abstained",
   RESOLVED: "Recovered",
-};
-
-const NODE_CLASS: Record<NodeStatus, string> = {
-  idle: "agentIdle",
-  working: "agentWorking",
-  reported: "agentReported",
-  failed: "agentFailed",
-};
-
-const NODE_WORD: Record<NodeStatus, string> = {
-  idle: "not involved yet",
-  working: "working now",
-  reported: "reported",
-  failed: "no response",
 };
 
 function formatTime(iso: string | undefined): string {
@@ -124,9 +111,15 @@ function ApprovalBanner({ model, incident }: { model: CommandCenterModel; incide
         <div>
           <div className={styles.approvalTitle}>APPROVAL WINDOW CLOSED. NOTHING WAS EXECUTED</div>
           <p className={styles.approvalText}>
-            NEXUS stopped waiting for a decision, so this plan can no longer run. Approving it now would do nothing.
-            Start the demo again to get a fresh plan.
+            NEXUS stopped waiting, so nothing ran. The plan is saved: if you approve it now, NEXUS re-checks it against the
+            safety rules, runs it, and measures the live service again.
           </p>
+          {decide.isError && <span className={styles.errorNote}>Could not record the decision: {String(decide.error)}</span>}
+        </div>
+        <div className={styles.approvalBtns}>
+          <button type="button" className={styles.approveBtn} disabled={decide.isPending} onClick={() => decide.mutate("APPROVED")}>
+            APPROVE SAVED PLAN
+          </button>
         </div>
       </div>
     );
@@ -286,7 +279,7 @@ function RecoveryBlock({ model, incident }: { model: CommandCenterModel; inciden
       {rec.stage === "DECLINED" && <p className={styles.decisionText}>The operator declined this plan. No action was taken.</p>}
       {rec.stage === "EXPIRED" && (
         <p className={styles.decisionText}>
-          NEXUS stopped waiting for a decision, so nothing was executed and this plan can no longer run.
+          NEXUS stopped waiting for a decision, so nothing was executed. The plan is saved and can still be approved.
         </p>
       )}
 
@@ -296,10 +289,10 @@ function RecoveryBlock({ model, incident }: { model: CommandCenterModel; inciden
             <li
               key={s.label}
               className={`${styles.stageStep} ${i < idx || rec.stage === "RECOVERED" ? styles.stageDone : ""} ${
-                i === idx ? (failed ? styles.stageFailed : styles.stageCurrent) : ""
+                i === idx ? (failed ? styles.stageFailed : rec.stage === "RECOVERED" ? "" : styles.stageCurrent) : ""
               }`}
             >
-              {s.label}
+              {s.label === "Recovered" && rec.stage === "VERIFICATION_FAILED" ? "Not recovered" : s.label}
             </li>
           ))}
         </ol>
@@ -460,6 +453,10 @@ export function IncidentHumanCard({ model, incident, events, agentsOnline }: Pro
             <span className={styles.failureLabel}>Last update</span>
             <span className={styles.failureVal}>{formatTime(model.updatedAt)}</span>
           </div>
+          <div className={styles.failureItem}>
+            <span className={styles.failureLabel}>Confused by a word?</span>
+            <a className={styles.failureVal} href="#plain-english">Jump to plain English ↓</a>
+          </div>
         </div>
       </section>
 
@@ -491,23 +488,8 @@ export function IncidentHumanCard({ model, incident, events, agentsOnline }: Pro
               ? `Latest: ${model.latest.label} — ${model.latest.actor}${model.latest.detail ? ` (${model.latest.detail})` : ""}.`
               : "No events recorded yet."}
           </p>
-          <div className={styles.agentSwarmList}>
-            <span className={styles.swarmLabel}>The 7 agents (status comes from real events):</span>
-            <div className={styles.swarmChips}>
-              {PIPELINE_AGENTS.map((a) => {
-                const node = model.pipeline[a.key];
-                return (
-                  <span key={a.key} className={`${styles.agentChip} ${styles[NODE_CLASS[node.status]]}`}>
-                    <span className={styles.agentDot} />
-                    <span>
-                      {a.name} · {NODE_WORD[node.status]}
-                      {node.note ? <span className={styles.lineMeta}> — {node.note}</span> : null}
-                    </span>
-                  </span>
-                );
-              })}
-            </div>
-          </div>
+          <AgentFlow model={model} events={events} animated={!stalled && !terminal} />
+          <AgentConversation events={events} model={model} animated={!stalled && !terminal} />
         </div>
       </section>
 
@@ -701,6 +683,8 @@ export function IncidentHumanCard({ model, incident, events, agentsOnline }: Pro
           <RecoveryBlock model={model} incident={incident} />
         </section>
       </div>
+
+      <PlainEnglishBox model={model} incident={incident} events={events} />
 
       <TechnicalDetails model={model} incident={incident} events={events} />
     </div>

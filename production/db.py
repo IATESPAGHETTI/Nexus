@@ -8,6 +8,7 @@ recorded diagnostics are not faked.
 from __future__ import annotations
 
 import sqlite3
+import threading
 import time
 
 import state
@@ -18,6 +19,7 @@ from observability import query_store
 DB_SLOWDOWN_SECONDS = 0.25
 
 _connection: sqlite3.Connection | None = None
+_write_lock = threading.Lock()
 
 SEED_ORDERS = [
     ("alice", 42.50, "completed"),
@@ -78,6 +80,24 @@ def run_query(sql: str, params: tuple = ()) -> list[sqlite3.Row]:
         }
     )
     return rows
+
+
+def create_order(customer: str, amount: float, status: str = "completed") -> dict:
+    """Inserts one order. Timed, slowed by db_slowdown, and recorded in the query store exactly
+    like run_query, so a slow database makes checkout genuinely slow and the Database Agent
+    sees the INSERT in its query summary."""
+    conn = get_connection()
+    start = time.perf_counter()
+    if state.snapshot()["db_slowdown"]:
+        time.sleep(DB_SLOWDOWN_SECONDS)
+    created_at = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    sql = "INSERT INTO orders (customer, amount, status, created_at) VALUES (?, ?, ?, ?)"
+    with _write_lock:
+        cursor = conn.execute(sql, (customer, amount, status, created_at))
+        conn.commit()
+        order_id = cursor.lastrowid
+    query_store.add({"sql": sql, "duration_ms": round((time.perf_counter() - start) * 1000, 3), "row_count": 1})
+    return {"id": order_id, "customer": customer, "amount": amount, "status": status, "created_at": created_at}
 
 
 def diagnostics() -> dict:

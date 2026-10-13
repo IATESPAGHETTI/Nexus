@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState } from "react";
 import { useDemoStatus } from "../api/useDemoStatus";
-import type { DemoStatus } from "../api/client";
+import { startAgents, stopAgents, type DemoStatus } from "../api/client";
 
 interface AgentControlContextType {
   agentsEnabled: boolean;
@@ -46,7 +46,19 @@ export function AgentControlProvider({ children }: { children: React.ReactNode }
   };
 
   const toggleAgents = () => {
-    setAgentsEnabled(!agentsEnabled);
+    const turningOn = !agentsEnabled;
+    setAgentsEnabled(turningOn);
+    if (turningOn) {
+      // Really start the agent services (backend/app/demo.py); the 5s status
+      // poll then shows them coming up. Failure just leaves the status honest.
+      startAgents()
+        .catch(() => undefined)
+        .finally(() => demoStatusQuery.refetch());
+    } else {
+      stopAgents()
+        .catch(() => undefined)
+        .finally(() => demoStatusQuery.refetch());
+    }
   };
 
   return (

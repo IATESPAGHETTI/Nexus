@@ -10,7 +10,7 @@ from pathlib import Path
 
 # Simulated production service (Phase 2). Overridable for docker-compose networking
 # (service name "production") vs. local dev (localhost).
-PRODUCTION_BASE_URL = os.environ.get("PRODUCTION_BASE_URL", "http://localhost:8001")
+PRODUCTION_BASE_URL = os.environ.get("PRODUCTION_BASE_URL", "http://127.0.0.1:8001")  # 127.0.0.1 not "localhost": on Windows "localhost" costs ~2 s per request (IPv6 tried first)
 
 # All outbound HTTP calls to the production simulation are bounded.
 HTTP_TIMEOUT_SECONDS = 5.0

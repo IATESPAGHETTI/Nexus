@@ -1,0 +1,75 @@
+# Runs the deterministic test suites (no API key, no model calls, no running services).
+# Each component installs into its own environment, mirroring the local .venv-* layout
+# (root CLAUDE.md section 23). NOT yet run on GitHub: first push may need small fixes.
+name: tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend-and-production:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r requirements-dev.txt
+      - run: pytest
+
+  orchestrator-guardrails-evaluation:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r orchestrator/requirements.txt
+      - run: >
+          python -m pytest
+          orchestrator/tests/test_budget.py
+          orchestrator/tests/test_investigation_logic.py
+          orchestrator/tests/test_recovery_logic.py
+          orchestrator/tests/test_verification.py
+          guardrails/tests
+          evaluation/tests
+          fault_injection/tests/test_scenarios.py
+          -q
+
+  agents-fast:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -r agents/requirements.txt
+      - run: >
+          python -m pytest
+          agents/tests/test_usage_tally.py
+          agents/tests/test_finding.py
+          agents/tests/test_evidence_critic.py
+          agents/tests/test_recovery.py
+          -q
+
+  dashboard:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: dashboard/package-lock.json
+      - run: npm --prefix dashboard ci
+      - run: npm --prefix dashboard run build
+
+  no-secrets:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: fail if a key-like string or .env is committed
+        run: |
+          if git ls-files | grep -E '(^|/)\.env$'; then echo ".env is tracked"; exit 1; fi
+          if git grep -nE 'gsk_[A-Za-z0-9]{20,}|sk-[A-Za-z0-9]{30,}|AIza[0-9A-Za-z_-]{30,}' -- . ':!docs' ; then echo "key-like string found"; exit 1; fi

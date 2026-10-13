@@ -1,4 +1,7 @@
 .container {
+  --nx-ink-1: #f2efee;
+  --nx-ink-2: #cdc8c6;
+  --nx-ink-3: #9a9492;
   display: inline-flex;
   align-items: center;
   gap: var(--nx-space-3);

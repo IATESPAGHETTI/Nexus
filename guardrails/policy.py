@@ -16,6 +16,7 @@ import time
 import uuid
 
 from config import ALLOWED_ACTIONS, MAX_ACTIONS_PER_PLAN, MAX_RISK_LEVEL_ALLOWED, VALID_RISK_LEVELS
+from remedy import mismatch_reason
 
 _RISK_ORDER = {level: i for i, level in enumerate(VALID_RISK_LEVELS)}
 
@@ -24,7 +25,7 @@ def _now_iso() -> str:
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
 
-def validate_plan(plan: dict) -> dict:
+def validate_plan(plan: dict, evidence_pool: list[dict] | None = None) -> dict:
     """Returns a SafetyValidationResult:
 
     {
@@ -40,6 +41,11 @@ def validate_plan(plan: dict) -> dict:
     guardrails does not silently drop bad actions and approve the rest; a
     partially-invalid plan is a plan the Recovery Agent got wrong and must not
     proceed to human approval at all.
+
+    `evidence_pool` (optional): the real MCP evidence behind the diagnosis. When
+    given, a plan whose actions cannot fix any symptom that evidence clearly
+    shows is REJECTED too (guardrails/remedy.py) -- e.g. `reset_config` for a
+    slow database. Without it that check is skipped.
     """
     reasons: list[str] = []
     checked: list[str] = []
@@ -76,6 +82,10 @@ def validate_plan(plan: dict) -> dict:
         extra = [p for p in params if p not in spec["required_params"]]
         if extra:
             reasons.append(f"action '{name}' has unexpected params (dropped): {extra}")
+
+    mismatch = mismatch_reason(checked, evidence_pool)
+    if mismatch:
+        reasons.append(mismatch)
 
     risk_level = plan.get("risk_level")
     if risk_level not in VALID_RISK_LEVELS:

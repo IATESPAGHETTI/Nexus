@@ -71,6 +71,29 @@ export function getDemoStatus(): Promise<DemoStatus> {
   return getJson<DemoStatus>("/demo/status");
 }
 
+export interface StartAgentsResult {
+  started: string[];
+  already_running: string[];
+  failed: string[];
+  note: string;
+}
+
+// The ON switch: asks the backend to launch the 7 agent services that are down.
+export function startAgents(): Promise<StartAgentsResult> {
+  return postJson<StartAgentsResult>("/demo/agents/start", {});
+}
+
+export interface StopAgentsResult {
+  stopped: string[];
+  still_running: string[];
+  note: string;
+}
+
+// The OFF switch: stops the agent services the dashboard itself started.
+export function stopAgents(): Promise<StopAgentsResult> {
+  return postJson<StopAgentsResult>("/demo/agents/stop", {});
+}
+
 export interface InvestigateResult {
   incident_id: string;
   fault_type: string;
@@ -86,10 +109,14 @@ export interface InvestigateResult {
 // they record is real, not fabricated.
 export async function sendCustomerRequests(count: number): Promise<{ ok: number; failed: number }> {
   const results = await Promise.allSettled(
-    Array.from({ length: count }, () => fetch("/production/orders").then((r) => r.ok)),
+    Array.from({ length: count }, (_, i) => fetch(i % 3 === 2 ? "/production/orders/1" : "/production/orders").then((r) => r.ok)),
   );
   const ok = results.filter((r) => r.status === "fulfilled" && r.value).length;
   return { ok, failed: count - ok };
+}
+
+export function resetShop(): Promise<unknown> {
+  return postJson<unknown>("/demo/reset-shop", {});
 }
 
 export function injectControlledFailure(

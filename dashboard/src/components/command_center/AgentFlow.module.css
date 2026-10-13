@@ -1,0 +1,244 @@
+.flow {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.manager {
+  position: relative;
+  border: 1px solid rgba(96, 165, 250, 0.35);
+  background: rgba(96, 165, 250, 0.07);
+  border-radius: 14px;
+  padding: 12px 16px;
+  overflow: hidden;
+}
+
+/* a soft light sweeps across while any agent is working */
+.managerLive::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(100deg, transparent 30%, rgba(96, 165, 250, 0.18) 50%, transparent 70%);
+  transform: translateX(-100%);
+  animation: sweep 2.4s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.managerTitle {
+  font-weight: 700;
+  font-size: 14px;
+  color: #1d4fb0;
+}
+
+.managerSub {
+  font-size: 12px;
+  color: var(--nx-ink-3);
+  margin-top: 2px;
+}
+
+.managerLatest {
+  font-family: var(--nx-font-mono);
+  font-size: 12px;
+  color: var(--nx-ink-2);
+  margin-top: 8px;
+  min-height: 18px;
+}
+
+.rowLabel {
+  font-family: var(--nx-font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--nx-ink-3);
+  margin-top: 6px;
+}
+
+.row4,
+.row3 {
+  display: grid;
+  gap: 10px;
+}
+
+.row4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.row3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+
+@media (max-width: 760px) {
+  .row4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .row3 { grid-template-columns: 1fr; }
+}
+
+.col {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  min-width: 0;
+}
+
+/* the wire between the manager and an agent */
+.wire {
+  position: relative;
+  height: 26px;
+  width: 2px;
+  margin: 0 auto;
+  background: rgba(17, 17, 17, 0.12);
+  overflow: visible;
+}
+
+.working .wire { background: rgba(233, 166, 78, 0.5); }
+.reported .wire { background: rgba(111, 207, 151, 0.45); }
+.failed .wire { background: rgba(240, 101, 106, 0.5); }
+
+.packetDown,
+.packetUp {
+  position: absolute;
+  left: 50%;
+  width: 9px;
+  height: 9px;
+  margin-left: -4.5px;
+  border-radius: 50%;
+}
+
+.packetDown {
+  top: 0;
+  background: #d68a1f;
+  box-shadow: 0 0 10px #d68a1f;
+  animation: down 1.1s ease-in infinite;
+}
+
+.packetUp {
+  bottom: 0;
+  background: #2fae6a;
+  box-shadow: 0 0 12px #2fae6a;
+  animation: up 0.9s ease-out 1 forwards;
+}
+
+.node {
+  border: 1px solid rgba(17, 17, 17, 0.1);
+  background: rgba(17, 17, 17, 0.03);
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-width: 0;
+  transition: border-color 0.3s, background 0.3s, opacity 0.3s;
+}
+
+.idle .node { opacity: 0.55; }
+
+.nodeTop {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex: none;
+  background: #64748b;
+}
+
+.name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--nx-ink-1);
+  overflow-wrap: anywhere;
+}
+
+.state {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-family: var(--nx-font-mono);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--nx-ink-3);
+}
+
+.note {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.4;
+  color: var(--nx-ink-3);
+}
+
+.working .node {
+  border-color: rgba(233, 166, 78, 0.5);
+  background: rgba(233, 166, 78, 0.09);
+}
+.working .dot { background: #d68a1f; animation: blink 1.2s ease-in-out infinite; }
+.working .state { color: #8a5208; }
+
+.nodeLive {
+  animation: glow 1.8s ease-in-out infinite;
+}
+
+.reported .node { border-color: rgba(111, 207, 151, 0.4); }
+.reported .dot { background: #2fae6a; }
+.reported .state { color: #157a3c; }
+
+.failed .node { border-color: rgba(240, 101, 106, 0.5); }
+.failed .dot { background: #e0474c; }
+.failed .state { color: #c0353a; }
+
+.tick {
+  color: #2fae6a;
+  font-weight: 700;
+  display: inline-block;
+}
+
+/* three bouncing dots = "waiting for its reply" */
+.typing {
+  display: inline-flex;
+  gap: 3px;
+  margin-left: 2px;
+}
+.typing i {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: bounce 1s ease-in-out infinite;
+}
+.typing i:nth-child(2) { animation-delay: 0.15s; }
+.typing i:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes down {
+  0% { top: 0; opacity: 0; }
+  15% { opacity: 1; }
+  100% { top: calc(100% - 9px); opacity: 1; }
+}
+@keyframes up {
+  0% { bottom: 0; opacity: 1; }
+  100% { bottom: calc(100% - 9px); opacity: 0; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.35; }
+}
+@keyframes glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(233, 166, 78, 0); }
+  50% { box-shadow: 0 0 18px 0 rgba(233, 166, 78, 0.28); }
+}
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+  30% { transform: translateY(-3px); opacity: 1; }
+}
+@keyframes sweep {
+  to { transform: translateX(100%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .managerLive::after,
+  .packetDown,
+  .nodeLive,
+  .typing i,
+  .working .dot { animation: none; }
+  .packetUp { animation: none; opacity: 0; }
+}
+
+/* skipped by the Incident Manager's triage */
+.notCalled .node { opacity: 0.7; border-style: dashed; background: transparent; }
+.notCalled .wire { background: repeating-linear-gradient(to bottom, rgba(17,17,17,0.18) 0 3px, transparent 3px 6px); }

@@ -136,3 +136,64 @@ def test_approve_on_unknown_incident_is_404():
         "/incidents/INC-doesnotexist/approve", json={"decision": "APPROVED", "approved_by": "deepu"}
     )
     assert response.status_code == 404
+
+
+def test_approving_after_the_window_expired_resumes_the_saved_plan(monkeypatch):
+    from app import demo
+
+    spawned = []
+    monkeypatch.setattr(demo, "can_resume_recovery", lambda: True)
+    monkeypatch.setattr(demo, "spawn_resume_recovery", lambda incident_id: spawned.append(incident_id) or True)
+    incident_id = client.post("/incidents", json={"description": "late"}).json()["incident_id"]
+    client.post(f"/incidents/{incident_id}/state", json={"approval_state": {"decision": "EXPIRED"}})
+
+    body = client.post(f"/incidents/{incident_id}/approve", json={"decision": "APPROVED", "approved_by": "me"}).json()
+
+    assert spawned == [incident_id]
+    assert body["approval_state"]["decision"] == "APPROVED" and body["approval_state"]["late"] is True
+
+
+def test_normal_approval_does_not_spawn_a_resume(monkeypatch):
+    from app import demo
+
+    spawned = []
+    monkeypatch.setattr(demo, "spawn_resume_recovery", lambda incident_id: spawned.append(incident_id) or True)
+    incident_id = client.post("/incidents", json={"description": "normal"}).json()["incident_id"]
+    client.post(f"/incidents/{incident_id}/state", json={"approval_state": {"decision": "PENDING"}})
+    client.post(f"/incidents/{incident_id}/approve", json={"decision": "APPROVED", "approved_by": "me"})
+    assert spawned == []
+
+
+def test_late_approval_is_refused_not_silently_dropped_when_resume_is_impossible(monkeypatch):
+    from app import demo
+
+    monkeypatch.setattr(demo, "can_resume_recovery", lambda: False)
+    incident_id = client.post("/incidents", json={"description": "late"}).json()["incident_id"]
+    client.post(f"/incidents/{incident_id}/state", json={"approval_state": {"decision": "EXPIRED"}})
+    assert client.post(f"/incidents/{incident_id}/approve", json={"decision": "APPROVED", "approved_by": "me"}).status_code == 503
+    assert client.get(f"/incidents/{incident_id}").json()["approval_state"]["decision"] == "EXPIRED"
+
+
+def _incident_awaiting_approval():
+    incident_id = client.post("/incidents", json={"description": "gate"}).json()["incident_id"]
+    client.post(f"/incidents/{incident_id}/state", json={"approval_state": {"decision": "PENDING"}})
+    return incident_id
+
+
+def test_approval_needs_the_token_when_one_is_configured(monkeypatch):
+    monkeypatch.setenv("NEXUS_APPROVER_TOKEN", "s3cret")
+    incident_id = _incident_awaiting_approval()
+    body = {"decision": "APPROVED", "approved_by": "me"}
+
+    assert client.post(f"/incidents/{incident_id}/approve", json=body).status_code == 403
+    assert client.post(f"/incidents/{incident_id}/approve", json=body, headers={"X-Approver-Token": "wrong"}).status_code == 403
+    assert client.get(f"/incidents/{incident_id}").json()["approval_state"]["decision"] == "PENDING"  # nothing recorded
+
+    ok = client.post(f"/incidents/{incident_id}/approve", json=body, headers={"X-Approver-Token": "s3cret"})
+    assert ok.status_code == 200 and ok.json()["approval_state"]["decision"] == "APPROVED"
+
+
+def test_approval_is_open_when_no_token_is_configured(monkeypatch):
+    monkeypatch.delenv("NEXUS_APPROVER_TOKEN", raising=False)
+    incident_id = _incident_awaiting_approval()
+    assert client.post(f"/incidents/{incident_id}/approve", json={"decision": "REJECTED", "approved_by": "me"}).status_code == 200

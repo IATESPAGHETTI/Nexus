@@ -29,6 +29,7 @@ export const EVENT_LABELS: Record<string, string> = {
   INCIDENT_STATUS_CHANGED: "Incident status updated",
   AGENT_STARTED: "Agent began investigating",
   AGENT_COMPLETED: "Agent finished investigating",
+  AGENTS_SELECTED: "Incident Manager chose which agents to call",
   A2A_MESSAGE_SENT: "Agents exchanged a message",
   MCP_TOOL_CALL: "Agent ran a system check",
   MCP_TOOL_RESULT: "System check returned results",

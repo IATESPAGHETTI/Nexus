@@ -26,6 +26,12 @@ of any kind (see `recovery/agent.py` below and `guardrails/CLAUDE.md`).
     as evidence. Also sets `litellm.num_retries = 5` (see Groq rate-limit note
     below). `build_adk_agent()` is public — reused by both `investigate()` (direct,
     Phase 4) and the A2A server (Phase 5).
+  - `usage_tally.py` (2026-10-10) — `UsageTally`: sums the real model calls/tokens
+    from an ADK event stream (`event.usage_metadata`, skipping streaming
+    partials). Both runners use it and return the result under a `usage` key on
+    the Finding / hypotheses / critique / recovery-plan reply; the orchestrator
+    strips it before storing (`orchestrator/budget.py`). Measured, never
+    estimated; 0 calls reported means the provider sent no usage block.
   - `ports.py` — single source of truth for each agent's A2A port
     (metrics=8101, logs_traces=8102, change_analysis=8103, database=8104).
   - `a2a_server.py` — `DiagnosticAgentExecutor` (a real `a2a.server.agent_execution.
@@ -182,3 +188,9 @@ described above — this is an external quota, not a bug.
 ## Usually don't touch
 `backend/`, `production/`, `orchestrator/`, `mcp/` (separate verified components,
 separate venvs)
+
+## Prompt changes 2026-10-13
+- Critic: an EVIDENCE LIMITS paragraph (only metrics, logs with error text, request traces without child spans, change
+  history and DB stats can exist; do not ask for anything else; SUPPORTED when sources agree and nothing contradicts).
+- Logs & Traces: at most 4 tool calls, no repeated calls, quote error text exactly.
+- Tuned after failures on the five known scenarios; re-measure on held-out scenarios before claiming accuracy.

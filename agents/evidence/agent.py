@@ -43,7 +43,8 @@ INSTRUCTION = (
     "(a short string naming what to investigate next, or null). Reply with "
     "ONLY the JSON array -- no prose, no markdown code fences. Propose 1 to 3 "
     "hypotheses, most plausible first. If the findings do not support any "
-    "specific root cause, reply with an empty JSON array []."
+    "specific root cause, reply with an empty JSON array []. "
+    "TIME MATTERS: read the timestamps in logs and traces. If requests were fast EARLIER and are consistently slow AFTER some point, that is a step change with an onset time, not intermittent or bimodal behaviour; fast requests that happened BEFORE the onset do NOT contradict a claim about the slowness that followed. Only treat a fast response as conflicting evidence if it occurred during the same period as the slow ones. "
 )
 
 DEFAULT_QUESTION = "{}"
@@ -156,7 +157,7 @@ class EvidenceAgent:
 
         raw = await self._reasoner.investigate(question)
         hypotheses = build_hypotheses(findings_by_agent, raw.get("parsed"))
-        return {"hypotheses": hypotheses}
+        return {"hypotheses": hypotheses, "usage": raw.get("usage")}
 
 
 evidence_agent = EvidenceAgent()

@@ -41,6 +41,14 @@ token cost (reported as `Unavailable from provider` unless Groq returns a
 provider value; no quota or token number is inferred)
 ```
 
+Token cost note: each investigation records measured model usage in
+`incident.token_usage` (see `docs/API_CONTRACT.md`). `evaluation/run_experiment.py`
+now copies it into each full-NEXUS / no-critic run's `token_cost` (calls, tokens, and
+`unmeasured_tasks`; a lower bound if > 0) and `aggregate()` averages it over runs that
+have it. With no recorded usage it stays `Unavailable from provider`. The single-agent
+baseline does not report usage yet, so it has no token number. Not yet exercised by a
+live run.
+
 ## Status
 
 Phase 9's fault scenarios, injector, three-arm benchmark runner, and pure
@@ -52,3 +60,12 @@ the Groq account's exhausted daily token quota (TPD 200000), not substituted
 with synthetic output. When quota headroom is available, start the full stack
 and run `.venv-orchestrator/Scripts/python evaluation/run_experiment.py`.
 Report the generated JSON as the only source for measured evaluation values.
+
+## Notes added 2026-10-13
+
+- **Triage changes what is measured.** `run_investigation` now calls only the diagnostic agents the symptom text points at
+  (`orchestrator/triage.py`). Set `NEXUS_TRIAGE=0`, or pass `agent_names`, to call all four. State which was used in any result.
+- **Reset between trials.** Use `POST /admin/reset` on the shop before every trial; leftovers from an earlier fault
+  (old errors, rollbacks) otherwise act as misleading evidence and invalidate the comparison.
+- **Tuning contamination.** The Critic and Logs-agent prompts were adjusted after seeing failures on the five existing
+  scenarios. Accuracy must be measured on scenarios not used for that tuning.

@@ -3,6 +3,10 @@ services:
     build: ./backend
     ports:
       - "8000:8000"
+    environment:
+      NEXUS_DB_PATH: /data/nexus.db
+    volumes:
+      - nexus-data:/data
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')"]
       interval: 10s
@@ -18,3 +22,6 @@ services:
       interval: 10s
       timeout: 3s
       retries: 5
+
+volumes:
+  nexus-data:

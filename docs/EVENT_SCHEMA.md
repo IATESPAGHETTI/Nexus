@@ -36,6 +36,7 @@ INCIDENT_CREATED
 INCIDENT_STATUS_CHANGED
 AGENT_STARTED
 AGENT_COMPLETED
+AGENTS_SELECTED
 A2A_MESSAGE_SENT
 MCP_TOOL_CALL
 MCP_TOOL_RESULT
@@ -79,7 +80,7 @@ HTTP POST to `backend/`), called throughout `orchestrator/investigation.py`'s
 bounded re-evaluation loop and `orchestrator/recovery.py`'s bounded recovery
 flow. Consumer/store: `backend/app/incident_store.py` +
 `backend/app/main.py`'s `/incidents/{id}/events` endpoints. Event types
-actually emitted: `INCIDENT_CREATED`, `AGENT_STARTED`, `A2A_MESSAGE_SENT`,
+actually emitted: `INCIDENT_CREATED`, `AGENTS_SELECTED`, `AGENT_STARTED`, `A2A_MESSAGE_SENT`,
 `MCP_TOOL_CALL`, `MCP_TOOL_RESULT`, `AGENT_COMPLETED`, `EVIDENCE_FOUND`,
 `HYPOTHESIS_CREATED`, `HYPOTHESIS_UPDATED`, `RE_EVALUATION_STARTED`,
 `CRITIC_CHALLENGE`, `EVIDENCE_REQUESTED`, `DIAGNOSIS_REACHED`, `ABSTENTION`,
@@ -94,3 +95,10 @@ direct read of `mcp/audit.py`'s in-process deque — see
 explicit scope boundary, not an oversight. `dashboard/` has no consumer yet
 for the Phase 8 event types (its Phase 7 `RecoveryPlaceholder` is still
 disabled/unwired — see `docs/PROJECT_STATE.md`).
+
+## AGENTS_SELECTED (2026-10-13)
+
+Emitted by the Incident Manager before each dispatch round (source `incident_manager`). Payload:
+`{"round": 1, "selected": ["metrics_agent", ...], "skipped": [{"agent": "change_analysis_agent", "reason": "..."}]}`.
+Round 1 is chosen from the reported symptom text only; later rounds from what the Critic requested. The dashboard
+shows skipped agents as "not called" with the reason. One event per round, not per agent.

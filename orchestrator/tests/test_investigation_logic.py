@@ -278,3 +278,191 @@ async def test_skip_critic_ablation_abstains_when_no_hypotheses(fake_backend, mo
     )
 
     assert result["status"] == "ABSTAINED"
+
+
+# --------------------------------------------------------------------------
+# Per-incident spending limits (orchestrator/budget.py, root CLAUDE.md section 8)
+# --------------------------------------------------------------------------
+
+from budget import IncidentBudget  # noqa: E402
+
+
+def _usage(calls, total_tokens=0):
+    return {"llm_calls": calls, "prompt_tokens": total_tokens, "completion_tokens": 0, "total_tokens": total_tokens}
+
+
+def _finding_with_usage(base, calls):
+    return dict(base, usage=_usage(calls, calls * 1000))
+
+
+@pytest.mark.asyncio
+async def test_usage_is_recorded_and_stripped_from_stored_findings(fake_backend, monkeypatch):
+    findings = {
+        "metrics_agent": _finding_with_usage(FINDING_A, 2),
+        "database_agent": _finding_with_usage(FINDING_B, 2),
+    }
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch(findings))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        if agent_name == investigation.EVIDENCE_AGENT_NAME:
+            return {"response": {"hypotheses": [dict(HYPOTHESIS_1)], "usage": _usage(1, 3000)}, "task_id": "t1", "context_id": "c1"}
+        return {"response": {"verdict": "SUPPORTED", "hypothesis_id": "H1", "rationale": "ok", "usage": _usage(1, 2000)}, "task_id": "t2", "context_id": "c2"}
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3, trigger_recovery=False,
+        budget=IncidentBudget(),
+    )
+
+    usage = result["token_usage"]
+    assert usage["total"]["llm_calls"] == 6  # 2 + 2 diagnostic, 1 evidence, 1 critic
+    assert usage["total"]["total_tokens"] == 9000
+    assert usage["by_agent"]["root_cause_critic"]["total_tokens"] == 2000
+    assert usage["unmeasured_tasks"] == 0
+    assert usage["budget_exceeded"] is None
+    # bookkeeping must not leak into the stored evidence or the critique
+    assert all("usage" not in f for f in result["agent_findings"].values())
+    assert all("usage" not in c for c in result["critic_results"])
+    assert result["status"] == "DIAGNOSED"
+
+
+@pytest.mark.asyncio
+async def test_budget_exhausted_by_diagnostic_agents_abstains_before_evidence_agent(fake_backend, monkeypatch):
+    findings = {
+        "metrics_agent": _finding_with_usage(FINDING_A, 2),
+        "database_agent": _finding_with_usage(FINDING_B, 2),
+    }
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch(findings))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        raise AssertionError(f"no model-backed agent may be called once the budget is spent (called {agent_name})")
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3, budget=IncidentBudget(max_llm_calls=4)
+    )
+
+    assert result["status"] == "ABSTAINED"
+    assert "MAX_LLM_CALLS_PER_INCIDENT" in result["decision"]["reason"]
+    assert result["decision"]["loops_used"] == 0
+    assert result["token_usage"]["budget_exceeded"]
+    assert "ABSTENTION" in [e["event_type"] for e in fake_backend.events]
+    assert "DIAGNOSIS_REACHED" not in [e["event_type"] for e in fake_backend.events]
+
+
+@pytest.mark.asyncio
+async def test_budget_reached_mid_loop_stops_before_second_dispatch(fake_backend, monkeypatch):
+    findings = {
+        "metrics_agent": _finding_with_usage(FINDING_A, 2),
+        "database_agent": _finding_with_usage(FINDING_B, 2),
+    }
+    dispatches = []
+    base_dispatch = _fake_dispatch(findings)
+
+    async def counting_dispatch(incident_description, agent_names=None):
+        dispatches.append(incident_description)
+        return await base_dispatch(incident_description, agent_names)
+
+    monkeypatch.setattr(investigation, "investigate_incident", counting_dispatch)
+
+    critic_calls = []
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        if agent_name == investigation.EVIDENCE_AGENT_NAME:
+            return {"response": {"hypotheses": [dict(HYPOTHESIS_1)], "usage": _usage(1)}, "task_id": "t1", "context_id": "c1"}
+        critic_calls.append(1)
+        return {
+            "response": {"verdict": "INSUFFICIENT_EVIDENCE", "hypothesis_id": "H1", "rationale": "need more", "usage": _usage(1)},
+            "task_id": "t2",
+            "context_id": "c2",
+        }
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    # 4 (diagnostic) + 1 (evidence) = 5 < 6, so the critic still runs; its call makes 6 -> no re-dispatch.
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3, trigger_recovery=False,
+        budget=IncidentBudget(max_llm_calls=6),
+    )
+
+    assert len(dispatches) == 1, "the costly second round of diagnostic agents must not start"
+    assert len(critic_calls) == 1
+    assert result["status"] == "ABSTAINED"
+    assert "stopped before requesting more evidence" in result["decision"]["reason"]
+
+
+@pytest.mark.asyncio
+async def test_diagnosis_stands_but_recovery_is_withheld_when_budget_spent(fake_backend, monkeypatch):
+    findings = {
+        "metrics_agent": _finding_with_usage(FINDING_A, 2),
+        "database_agent": _finding_with_usage(FINDING_B, 2),
+    }
+    monkeypatch.setattr(investigation, "investigate_incident", _fake_dispatch(findings))
+
+    async def fake_call_remote_agent(agent_name, description, message_text):
+        if agent_name == investigation.EVIDENCE_AGENT_NAME:
+            return {"response": {"hypotheses": [dict(HYPOTHESIS_1)], "usage": _usage(1)}, "task_id": "t1", "context_id": "c1"}
+        return {"response": {"verdict": "SUPPORTED", "hypothesis_id": "H1", "rationale": "ok", "usage": _usage(1)}, "task_id": "t2", "context_id": "c2"}
+
+    monkeypatch.setattr(investigation, "call_remote_agent", fake_call_remote_agent)
+
+    async def must_not_run(*args, **kwargs):
+        raise AssertionError("recovery proposal is model-backed and must not start once the budget is spent")
+
+    monkeypatch.setattr(investigation.recovery, "run_recovery", must_not_run)
+
+    result = await investigation.run_investigation(
+        "db slowdown", agent_names=["metrics_agent", "database_agent"], max_loops=3, budget=IncidentBudget(max_llm_calls=6)
+    )
+
+    assert result["status"] == "DIAGNOSED"
+    assert "recovery not started" in result["decision"]["reason"]
+
+
+# --------------------------------------------------------------------------
+# Stable hypothesis identity across re-evaluation rounds
+# --------------------------------------------------------------------------
+
+
+def _h(hid, statement, confidence=0.5, **extra):
+    return dict({"hypothesis_id": hid, "statement": statement, "confidence": confidence, "status": "PROPOSED"}, **extra)
+
+
+def test_a_re_proposed_theory_keeps_its_id_and_gains_a_revision():
+    previous = [_h("H1", "Database queries became slow on the orders table", 0.6), _h("H2", "A bad deployment broke totals", 0.3)]
+    # next round the agent renumbers: the slow-database theory is now "H2"
+    new = [_h("H1", "A bad deployment broke order totals", 0.2), _h("H2", "Slow database queries on the orders table", 0.9)]
+
+    investigation.reconcile_hypotheses(previous, new)
+
+    by_statement = {h["statement"]: h for h in new}
+    db = by_statement["Slow database queries on the orders table"]
+    assert db["hypothesis_id"] == "H1" and db["revision"] == 2 and db["previous_confidence"] == 0.6
+    deploy = by_statement["A bad deployment broke order totals"]
+    assert deploy["hypothesis_id"] == "H2" and deploy["previous_confidence"] == 0.3
+
+
+def test_a_genuinely_new_theory_gets_a_fresh_unique_id():
+    previous = [_h("H1", "Database queries became slow on the orders table")]
+    new = [_h("H1", "Memory limit exceeded in the service process"), _h("H2", "Slow database queries on the orders table")]
+
+    investigation.reconcile_hypotheses(previous, new)
+
+    ids = [h["hypothesis_id"] for h in new]
+    assert len(set(ids)) == 2
+    fresh = next(h for h in new if "Memory" in h["statement"])
+    assert fresh["hypothesis_id"] != "H1" and "revision" not in fresh
+
+
+def test_first_round_is_left_untouched():
+    new = [_h("H1", "x one two"), _h("H2", "y three four")]
+    assert investigation.reconcile_hypotheses([], new) == [_h("H1", "x one two"), _h("H2", "y three four")]
+
+
+def test_two_new_theories_cannot_both_claim_the_same_old_id():
+    previous = [_h("H1", "Database queries became slow on the orders table")]
+    new = [_h("H1", "Database queries slow on orders table"), _h("H2", "Database queries became slow on the orders table")]
+    investigation.reconcile_hypotheses(previous, new)
+    assert len({h["hypothesis_id"] for h in new}) == 2

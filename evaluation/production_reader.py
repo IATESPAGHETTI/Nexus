@@ -13,7 +13,7 @@ import os
 
 import httpx
 
-PRODUCTION_BASE_URL = os.environ.get("PRODUCTION_BASE_URL", "http://localhost:8001")
+PRODUCTION_BASE_URL = os.environ.get("PRODUCTION_BASE_URL", "http://127.0.0.1:8001")  # 127.0.0.1 not "localhost": on Windows "localhost" costs ~2 s per request (IPv6 tried first)
 HTTP_TIMEOUT_SECONDS = 5.0
 
 

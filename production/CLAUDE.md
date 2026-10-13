@@ -13,6 +13,8 @@ not real production. Vanshika's workstream (implemented by Deepu).
   into `observability.query_store`. Phase 9: sleeps `state.DB_SLOWDOWN_SECONDS`
   before every query while `state.db_slowdown` is set — a real, not fabricated,
   slower query.
+- `catalog.py` — fixed product list + `BY_ID`; prices are authoritative here.
+- `storefront.html` — self-contained shop page served at `/shop`; calls only `/products` and `/orders` (never `/admin`).
 - `changes.py` — simulated deployment/change history. `append()` (Phase 8/9) is
   called for real by `service.py`'s fault-injection and rollback-recovery
   admin endpoints — a "bad deployment" fault and its rollback both leave a
@@ -34,12 +36,16 @@ GET  /changes?limit=N     simulated deployment/change history, newest first
 GET  /db/diagnostics      row counts + recent query timings from the seeded DB
 GET  /orders              demo endpoint that runs a real SQLite query
 GET  /orders/{id}         single order lookup (404 if unknown)
+GET  /shop               human-facing storefront page (storefront.html): product grid, cart, checkout, order list, demo monitor
+GET  /products           static catalog (catalog.py; NOT database-backed, so it stays fast when the DB is slow)
+POST /orders             checkout {customer, items:[{product_id, quantity}]} -> 201 {order, items}; total computed server-side
 
 # Phase 8/9 admin endpoints -- mutating; only fault_injection/injector.py and
 # guardrails/production_client.py are expected to call these:
 GET  /admin/state                             real fault-state snapshot
 POST /admin/fault/inject   {fault_type, bad_version?}
 POST /admin/fault/clear
+POST /admin/reset                             clean slate: faults + metrics/logs/traces/queries/extra changes/extra orders
 POST /admin/recovery/restart_service
 POST /admin/recovery/rollback_deployment {target_version}
 POST /admin/recovery/reset_config
@@ -50,6 +56,7 @@ traces automatically via the middleware in `service.py` — don't bypass it by a
 raw ASGI routes.
 
 ## Rules
+`/admin/*` calls are NOT recorded in metrics/logs/traces (they are NEXUS's control plane, not customer traffic; recording them let agents diagnose the test harness).
 Never let this service be mistaken for real production. Any fault injected here is
 reversible (`state.py`'s flags, cleared by `/admin/fault/clear` or a matching
 recovery action) and only reachable through `fault_injection/`'s
@@ -77,3 +84,8 @@ real state mutation, and `/admin/fault/clear`.
 ## Status
 Phase 2 (Observability) complete and verified. Phase 8/9 (fault-injectable +
 recoverable mutable state) complete and verified — see `docs/PROJECT_STATE.md`.
+
+## 2026-10-13
+- 5xx log entries carry an `error` field (the exception text) via an `HTTPException` handler that stores it on
+  `request.state` (`service.py`); healthy/4xx entries do not. Test: `tests/test_error_logging.py`.
+- `POST /admin/reset` (`tests/test_reset.py`) uses `clear()` on each store and `changes.reset()` (back to 3 seed entries).

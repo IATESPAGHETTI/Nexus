@@ -54,6 +54,11 @@ refuses structured output (`InvalidSignature`) — verified during Phase 3
 implementation. No arbitrary filesystem/system access; no secrets in any
 response (these tools never touch `GROQ_API_KEY`).
 
+## get_git_diff is disabled by default (2026-10-12)
+The repo's own history contains the simulator's fault-injection code and docs, so exposing it to agents leaks the
+answer. The tool still exists (tool list/protocol unchanged) but returns `ok: false` unless `NEXUS_ENABLE_GIT_DIFF=1`.
+The Change Analysis Agent no longer lists it.
+
 ## Rules
 Tools only ever touch the controlled `production/` HTTP API or this repo's own git
 history (never a real system, never files outside the allowlisted paths). Full

@@ -34,6 +34,8 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import time
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 import httpx
@@ -77,15 +79,19 @@ def check_production() -> bool:
         return False
 
 
+def _agent_up(port: int) -> bool:
+    try:
+        r = httpx.get(f"http://127.0.0.1:{port}/.well-known/agent-card.json", timeout=_TIMEOUT)
+        return r.status_code == 200
+    except httpx.RequestError:
+        return False
+
+
 def check_agents() -> dict[str, bool]:
-    reachable: dict[str, bool] = {}
-    for name, port in AGENT_PORTS.items():
-        try:
-            r = httpx.get(f"http://127.0.0.1:{port}/.well-known/agent-card.json", timeout=_TIMEOUT)
-            reachable[name] = r.status_code == 200
-        except httpx.RequestError:
-            reachable[name] = False
-    return reachable
+    # Probed in parallel: sequential probes took ~3s per down agent (~14s total).
+    with ThreadPoolExecutor(max_workers=len(AGENT_PORTS)) as pool:
+        results = list(pool.map(_agent_up, AGENT_PORTS.values()))
+    return dict(zip(AGENT_PORTS, results))
 
 
 def system_status() -> dict:
@@ -116,6 +122,17 @@ def inject_fault(fault_type: str) -> dict:
     return r.json()
 
 
+def reset_shop() -> dict:
+    """Return the simulated shop to a clean state (no faults, no history of earlier incidents)."""
+    try:
+        r = httpx.post(f"{PRODUCTION_URL}/admin/reset", timeout=_TIMEOUT)
+    except httpx.RequestError as exc:
+        raise ProductionUnavailableError(f"could not reach production/: {exc}") from exc
+    if r.status_code >= 400:
+        raise ProductionUnavailableError(f"production/ rejected the reset: HTTP {r.status_code} {r.text}")
+    return r.json()
+
+
 def spawn_investigation(incident_id: str, description: str) -> bool:
     """Launches the real orchestrator subprocess against an already-created
     incident. Fire-and-forget: does not block on or wait for the real Groq/
@@ -129,6 +146,109 @@ def spawn_investigation(incident_id: str, description: str) -> bool:
     with open(log_path, "w", encoding="utf-8") as log_file:
         subprocess.Popen(
             [str(ORCHESTRATOR_PYTHON), str(RUN_DEMO_SCRIPT), "--incident-id", incident_id, description],
+            cwd=str(REPO_ROOT),
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            stdin=subprocess.DEVNULL,
+        )
+    return True
+
+
+# Fixed allowlist: agent name -> its own A2A service script. Nothing here comes
+# from a request, so the dashboard can start these 7 scripts and nothing else.
+AGENT_SCRIPTS: dict[str, str] = {
+    "metrics_agent": "agents/metrics/a2a_service.py",
+    "logs_traces_agent": "agents/logs_traces/a2a_service.py",
+    "change_analysis_agent": "agents/change_analysis/a2a_service.py",
+    "database_agent": "agents/database/a2a_service.py",
+    "evidence_agent": "agents/evidence/a2a_service.py",
+    "root_cause_critic": "agents/critic/a2a_service.py",
+    "recovery_agent": "agents/recovery/a2a_service.py",
+}
+AGENTS_PYTHON = REPO_ROOT / ".venv-agents" / "Scripts" / "python.exe"
+_BOOT_GRACE_SECONDS = 60.0
+_spawned_at: dict[str, float] = {}
+_spawned_procs: dict[str, subprocess.Popen] = {}
+
+
+def start_agents() -> dict:
+    """Starts every agent service that is not already reachable (the dashboard's
+    ON switch). Idempotent: reachable agents are left alone, and one spawned in
+    the last minute is not spawned twice while it is still booting. Starting an
+    idle agent makes no model calls; cost only happens during an investigation."""
+    if not AGENTS_PYTHON.exists():
+        return {"started": [], "already_running": [], "failed": list(AGENT_SCRIPTS),
+                "note": f"agents interpreter not found at {AGENTS_PYTHON} (create .venv-agents first)"}
+    up = check_agents()
+    started, already, failed = [], [], []
+    DEMO_LOG_DIR.mkdir(exist_ok=True)
+    for name, script in AGENT_SCRIPTS.items():
+        if up.get(name):
+            already.append(name)
+            continue
+        previous = _spawned_procs.get(name)
+        died = previous is not None and previous.poll() is not None  # exited since we launched it
+        if not died and time.monotonic() - _spawned_at.get(name, -1e9) < _BOOT_GRACE_SECONDS:
+            started.append(name)  # launched moments ago, still booting
+            continue
+        try:
+            with open(DEMO_LOG_DIR / f"agent-{name}.log", "w", encoding="utf-8") as log_file:
+                proc = subprocess.Popen(
+                    [str(AGENTS_PYTHON), str(REPO_ROOT / script)],
+                    cwd=str(REPO_ROOT),
+                    stdout=log_file,
+                    stderr=subprocess.STDOUT,
+                    stdin=subprocess.DEVNULL,
+                )
+            _spawned_procs[name] = proc
+            _spawned_at[name] = time.monotonic()
+            started.append(name)
+        except OSError:
+            failed.append(name)
+    return {"started": started, "already_running": already, "failed": failed,
+            "note": "Agents take ~15-20 seconds to boot; watch the status count."}
+
+
+def _kill_tree(proc: subprocess.Popen) -> None:
+    """Stops the process AND its children (the venv launcher starts the real
+    interpreter, which in turn starts the MCP server)."""
+    if os.name == "nt":
+        subprocess.run(["taskkill", "/T", "/F", "/PID", str(proc.pid)], capture_output=True, check=False)
+    else:
+        proc.kill()
+
+
+def stop_agents() -> dict:
+    """The dashboard's agent OFF switch: stops only the agent services THIS backend
+    started. Agents someone started by hand are left alone and reported."""
+    stopped = []
+    for name, proc in list(_spawned_procs.items()):
+        if proc.poll() is None:
+            _kill_tree(proc)
+            stopped.append(name)
+        _spawned_procs.pop(name, None)
+        _spawned_at.pop(name, None)
+    still_up = [name for name, up in check_agents().items() if up]
+    return {
+        "stopped": stopped,
+        "still_running": still_up,
+        "note": "Agents not started from the dashboard are left running." if still_up else "All agents are stopped.",
+    }
+
+
+def can_resume_recovery() -> bool:
+    return ORCHESTRATOR_PYTHON.exists() and RUN_DEMO_SCRIPT.exists()
+
+
+def spawn_resume_recovery(incident_id: str) -> bool:
+    """Late approval: runs `run_demo.py --resume-recovery <id>` as a detached orchestrator
+    process (the original one exited when the approval window closed)."""
+    if not can_resume_recovery():
+        return False
+    DEMO_LOG_DIR.mkdir(exist_ok=True)
+    with open(DEMO_LOG_DIR / f"{incident_id}-resume.log", "w", encoding="utf-8") as log_file:
+        subprocess.Popen(
+            [str(ORCHESTRATOR_PYTHON), str(RUN_DEMO_SCRIPT), "--resume-recovery", incident_id],
             cwd=str(REPO_ROOT),
             stdout=log_file,
             stderr=subprocess.STDOUT,

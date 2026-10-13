@@ -18,11 +18,12 @@ import json
 import sys
 
 from investigation import run_investigation
+from recovery import resume_approved_recovery
 
 
 def main(argv: list[str]) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("description", help="incident description text handed to the diagnostic agents")
+    parser.add_argument("description", nargs="?", default="", help="incident description text handed to the diagnostic agents")
     parser.add_argument("--no-recovery", action="store_true", help="stop at DIAGNOSED/ABSTAINED, skip the Recovery Agent")
     parser.add_argument("--skip-critic", action="store_true", help="ablation: accept the leading hypothesis without the Root-Cause Critic")
     parser.add_argument("--max-loops", type=int, default=None, help="override MAX_REEVALUATION_LOOPS for this run")
@@ -31,7 +32,19 @@ def main(argv: list[str]) -> int:
         default=None,
         help="attach to an incident the caller already created via POST /incidents, instead of creating a new one",
     )
+    parser.add_argument(
+        "--resume-recovery",
+        metavar="INCIDENT_ID",
+        default=None,
+        help="late approval: execute and verify the saved, human-approved recovery plan of an existing incident",
+    )
     args = parser.parse_args(argv)
+
+    if args.resume_recovery:
+        print(json.dumps(asyncio.run(resume_approved_recovery(args.resume_recovery)), indent=2, default=str))
+        return 0
+    if not args.description:
+        parser.error("description is required unless --resume-recovery is given")
 
     result = asyncio.run(
         run_investigation(

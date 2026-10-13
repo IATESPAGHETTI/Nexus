@@ -19,7 +19,12 @@ INSTRUCTION = (
     "Your only job is to investigate request logs and traces for the simulated "
     "production service using the query_logs and get_trace tools. Look for ERROR "
     "level log entries and slow traces, and report what you actually find — do "
-    "not speculate about causes outside what the logs/traces show."
+    "not speculate about causes outside what the logs/traces show. "
+    "BE ECONOMICAL: make at most 4 tool calls in total (for example one query_logs "
+    "for ERROR entries, one query_logs for recent entries, and up to two get_trace "
+    "calls on the slowest or failing requests), never repeat a call with the same "
+    "arguments, then stop and report. Quote any error message text you find in the "
+    "log entries exactly, because it is the most useful clue."
 )
 
 DEFAULT_QUESTION = "Check recent logs for errors and inspect recent traces for slow requests."

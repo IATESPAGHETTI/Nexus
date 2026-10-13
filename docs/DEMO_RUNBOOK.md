@@ -111,3 +111,8 @@ Confirm all 9 ports are free before ending the session.
 - Docker Compose demo variant — `docker-compose.yml` currently builds/runs
   `backend` + `production` only; the A2A services and dashboard are run
   as local processes, not containerized, as of Phase 10.
+
+## Update 2026-10-13
+
+- Reset the shop between incidents: `curl -X POST http://127.0.0.1:8001/admin/reset` (the dashboard's Inject button does this itself). Old errors and rollbacks otherwise look like evidence in the next incident.
+- Restarting the backend also stops the agents it launched; start them again with `POST /demo/agents/start` or the dashboard ON switch.

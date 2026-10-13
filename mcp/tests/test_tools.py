@@ -103,19 +103,30 @@ def test_run_diagnostic_rejects_unknown_name():
     assert "error" in result
 
 
-def test_get_git_diff_default_paths():
+def test_get_git_diff_is_disabled_by_default_so_the_repo_history_cannot_leak_the_answer(monkeypatch):
+    monkeypatch.delenv("NEXUS_ENABLE_GIT_DIFF", raising=False)
+    result = tools.get_git_diff()
+    assert result["ok"] is False
+    assert "disabled" in result["error"] and "NEXUS_ENABLE_GIT_DIFF" in result["error"]
+    assert "commit_log_diff" not in result  # nothing from git history is returned
+
+
+def test_get_git_diff_default_paths(monkeypatch):
+    monkeypatch.setenv("NEXUS_ENABLE_GIT_DIFF", "1")
     result = tools.get_git_diff()
     assert result["ok"] is True
     assert "commit_history_available" in result
     assert "uncommitted_changes_stat" in result
 
 
-def test_get_git_diff_rejects_disallowed_path():
+def test_get_git_diff_rejects_disallowed_path(monkeypatch):
+    monkeypatch.setenv("NEXUS_ENABLE_GIT_DIFF", "1")
     result = tools.get_git_diff(paths=["../../etc"])
     assert result["ok"] is False
     assert "allowed path list" in result["error"]
 
 
-def test_get_git_diff_rejects_out_of_scope_top_level_dir():
+def test_get_git_diff_rejects_out_of_scope_top_level_dir(monkeypatch):
+    monkeypatch.setenv("NEXUS_ENABLE_GIT_DIFF", "1")
     result = tools.get_git_diff(paths=["agents"])
     assert result["ok"] is False

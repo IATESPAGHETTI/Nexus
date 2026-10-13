@@ -54,13 +54,43 @@ def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained
     }
 
 
+TOKEN_COST_UNAVAILABLE = "Unavailable from provider"
+
+
+def token_cost(incident: dict | None):
+    """Measured model usage for one investigation, from `incident.token_usage`
+    (orchestrator/budget.py). Never estimated: with no recorded usage this stays
+    the old "Unavailable from provider" text. `unmeasured_tasks` > 0 means some
+    agent tasks reported no token counts, so `total_tokens` is a lower bound."""
+    usage = (incident or {}).get("token_usage") or {}
+    total = usage.get("total")
+    if not isinstance(total, dict) or not total.get("llm_calls"):
+        return TOKEN_COST_UNAVAILABLE
+    return {
+        "llm_calls": total.get("llm_calls", 0),
+        "total_tokens": total.get("total_tokens", 0),
+        "unmeasured_tasks": usage.get("unmeasured_tasks", 0),
+    }
+
+
 def aggregate(records: list[dict]) -> dict:
     total = len(records)
     if total == 0:
         return {"total_runs": 0}
     diagnosed = [r for r in records if r["made_a_diagnosis"]]
     abstained = [r for r in records if r["abstained"]]
+    costs = [r["token_cost"] for r in records if isinstance(r.get("token_cost"), dict)]
+    token_summary = (
+        {
+            "runs_with_token_data": len(costs),
+            "avg_llm_calls": round(sum(c["llm_calls"] for c in costs) / len(costs), 1),
+            "avg_total_tokens": round(sum(c["total_tokens"] for c in costs) / len(costs)),
+        }
+        if costs
+        else {}
+    )
     return {
+        **token_summary,
         "total_runs": total,
         "root_cause_accuracy": round(sum(1 for r in records if r["correct"]) / total, 3),
         "false_diagnosis_rate": round(sum(1 for r in records if r["false_diagnosis"]) / total, 3),

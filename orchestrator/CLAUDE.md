@@ -62,6 +62,17 @@ The spike PASSED — see `orchestrator/spike/SPIKE_RESULT.md`. Runtime model: GP
   than forcing a diagnosis (root CLAUDE.md "never force a diagnosis"). Every
   transition is persisted to `backend/` via `event_bridge.py` (real HTTP, not
   an in-memory log).
+- `budget.py` — **implemented (2026-10-10)**. `IncidentBudget`: per-incident
+  spending limits (root CLAUDE.md section 8) from `MAX_LLM_CALLS_PER_INCIDENT`
+  (60), `MAX_TOTAL_TOKENS_PER_INCIDENT` (250000), `MAX_TOKENS_PER_AGENT` (80000)
+  — defaults are unmeasured guesses. `record(agent, usage)` adds the model usage
+  an agent task reported (no usage -> counted as 1 unmeasured call);
+  `exceeded()` says why no more model calls may start; `snapshot()` is what is
+  persisted as `incident.token_usage`. `investigation.py` pops the `usage` key
+  off every agent reply, checks the budget before evidence synthesis, each
+  critic review, each re-dispatch and recovery, and ABSTAINS naming the limit
+  when spent (never forces a diagnosis). Not yet counted: Recovery Agent and
+  post-fix verification calls.
 - `event_bridge.py` — **implemented (Phase 6)**. Thin real `httpx` client to
   `backend/`'s `/incidents`, `/incidents/{id}/events`, `/incidents/{id}/state`
   endpoints (`NEXUS_BACKEND_URL`, default `http://127.0.0.1:8000`). This is how
@@ -193,3 +204,9 @@ under 2 seconds.
 
 ## Usually don't touch
 `backend/`, `production/`, `mcp/` (separate verified components, separate venv)
+
+## Triage (2026-10-13)
+- `triage.py`: `select_agents(text, available, first_round=True)` picks which diagnostic agents to call from keyword
+  rules over the symptom text (never the injected fault). Metrics is always first and at least 2 agents are used on
+  round 1; later rounds ask only agents the Critic's request points at (everyone if none). `investigation.py` emits
+  `AGENTS_SELECTED` per round. `NEXUS_TRIAGE=0` or an explicit `agent_names` bypasses it. Tests: `tests/test_triage.py`.

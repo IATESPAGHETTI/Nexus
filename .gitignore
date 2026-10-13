@@ -13,6 +13,7 @@ build/
 guardrails/.kill_switch
 evaluation/results/
 backend/.demo_logs/
+backend/.data/
 
 # local design reference (third-party saved site) and secrets
 reference_web/

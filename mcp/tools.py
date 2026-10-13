@@ -38,6 +38,7 @@ def _audited(name):
                 production_client.ProductionUnavailableError,
                 production_client.ProductionNotFoundError,
                 git_diff_tool.InvalidGitDiffPathError,
+                git_diff_tool.GitDiffDisabledError,
                 ValueError,
             ) as exc:
                 duration_ms = (time.perf_counter() - start) * 1000

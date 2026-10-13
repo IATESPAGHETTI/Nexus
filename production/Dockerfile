@@ -5,6 +5,6 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY service.py db.py observability.py changes.py .
+COPY service.py db.py observability.py changes.py state.py catalog.py storefront.html .
 
 CMD ["uvicorn", "service:app", "--host", "0.0.0.0", "--port", "8001"]

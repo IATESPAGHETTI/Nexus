@@ -24,6 +24,8 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
+from usage_tally import UsageTally
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -100,9 +102,11 @@ class ReasoningAgent:
         user_message = types.Content(role="user", parts=[types.Part(text=question)])
 
         final_text = ""
+        usage = UsageTally()
         async for event in runner.run_async(
             user_id="nexus", session_id=session.id, new_message=user_message
         ):
+            usage.add_event(event)
             if not (event.content and event.content.parts):
                 continue
             for part in event.content.parts:
@@ -110,4 +114,4 @@ class ReasoningAgent:
                 if text:
                     final_text += text
 
-        return {"raw_text": final_text, "parsed": extract_json(final_text)}
+        return {"raw_text": final_text, "parsed": extract_json(final_text), "usage": usage.as_dict()}
