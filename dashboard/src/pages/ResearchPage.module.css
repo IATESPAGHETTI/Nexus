@@ -100,3 +100,5 @@
 .recordedLead { max-width: 52rem; margin: 0 0 1.5rem; font-size: 1.05rem; line-height: 1.55; color: var(--lt-ink-2); }
 .recordedLink { margin-top: 0.4rem; font-weight: 500; color: var(--lt-brand); text-decoration: none; }
 .recordedLink:hover { text-decoration: underline; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 0.3rem; }

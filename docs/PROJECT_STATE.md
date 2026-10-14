@@ -1,5 +1,13 @@
 # NEXUS Project State
 
+## Three-run benchmark (2026-10-13/14) — measured; supersedes the single-run numbers on /research
+Reports `2026-10-13T18-25-37Z`, `2026-10-14T15-45-06Z`, `2026-10-14T15-53-54Z` (gitignored; pooled into `dashboard/src/data/benchmark.json`).
+5 faults x 3 runs = 15 fault-runs per arm, deepseek-chat, merged code, 0 errored runs. Correct: single agent 15/15 (2.5k tokens),
+full NEXUS 14/15 (33.2k), no critic 14/15 (29.6k), triage 14/15 (32.2k, 3.1 specialists). Every miss was resource_exhaustion and it moved
+between arms run to run => noise, not a real difference. Triage used 3% fewer tokens than full overall (483k vs 498k) and was cheaper in
+11 of 15 fault-runs; the earlier single-run "triage costs more (38k vs 33k)" was NOT borne out. Cost of this step: balance 0.66 -> 0.56
+(live recovery check + 2 repeats, ~5 cents per full run). Conclusions are still limited to simple single-cause faults.
+
 ## Architecture diagram completed + live recovery check (2026-10-14) — diagram checked in the browser; recovery check run live
 Diagram (`ArchitectureSection.tsx`, on /presentation) now also shows: the simulated shop and the MCP layer under the specialists, the
 Critic's evidence loop back to the specialists via the manager (max 3 rounds), Recovery running only after the Critic approves, and the

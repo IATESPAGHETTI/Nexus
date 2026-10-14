@@ -96,20 +96,34 @@ const METRICS: [string, string][] = [
 ];
 
 type ArmKey = "single_agent_baseline" | "full_nexus" | "nexus_no_critic" | "nexus_triage";
-const AGG = bench.aggregates as Record<ArmKey, Record<string, number | null>>;
+interface Agg {
+  total: number;
+  correct: number;
+  false_diagnosis_rate: number;
+  abstention_rate: number;
+  avg_latency_seconds: number;
+  avg_llm_calls: number;
+  avg_total_tokens: number;
+  per_run_accuracy: number[];
+  avg_specialists: number | null;
+}
+const AGG = bench.aggregates as unknown as Record<ArmKey, Agg>;
+const pct = (v: number) => `${Math.round(v * 100)}%`;
 
 function ArmResult({ arm }: { arm: ArmKey }) {
   const a = AGG[arm];
-  const pct = (v: number | null) => (v === null ? "n/a" : `${Math.round(v * 100)}%`);
   return (
     <span className={styles.result}>
-      <b>{pct(a.root_cause_accuracy)} correct</b>
+      <b>
+        {a.correct} of {a.total} correct
+      </b>
+      <span>per run: {a.per_run_accuracy.map(pct).join(", ")}</span>
       <span>
         {pct(a.false_diagnosis_rate)} false · {pct(a.abstention_rate)} abstained
       </span>
       <span>
-        {Math.round(Number(a.avg_latency_seconds))}s · {Number(a.avg_llm_calls)} calls ·{" "}
-        {Math.round(Number(a.avg_total_tokens)).toLocaleString()} tokens
+        {Math.round(a.avg_latency_seconds)}s · {a.avg_llm_calls} calls · {a.avg_total_tokens.toLocaleString()} tokens
+        {a.avg_specialists ? ` · ${a.avg_specialists} specialists` : ""}
       </span>
     </span>
   );
@@ -129,14 +143,15 @@ function ResultsByScenario() {
     ["nexus_no_critic", "No critic"],
     ["nexus_triage", "Triage"],
   ];
+  const tv = bench.triage_vs_full;
   return (
     <>
-      <h3 className={styles.subhead}>Per-scenario outcomes</h3>
+      <h3 className={styles.subhead}>Per-fault outcomes, three runs each</h3>
       <div className={styles.tableWrap}>
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>Scenario</th>
+              <th>Fault</th>
               {arms.map(([, l]) => (
                 <th key={l}>{l}</th>
               ))}
@@ -150,13 +165,17 @@ function ResultsByScenario() {
                 </td>
                 {arms.map(([k]) => {
                   const x = r[k];
+                  const mean = Math.round(x.tokens.reduce((p, c) => p + (c ?? 0), 0) / x.tokens.length);
                   return (
                     <td key={k}>
-                      <span className={`${styles.chip} ${styles[OUTCOME_CLASS[x.outcome]]}`}>{x.outcome}</span>
-                      <span className={styles.where}>
-                        {x.predicted} · {Math.round(x.seconds)}s · {(x.tokens ?? 0).toLocaleString()} tok
-                        {x.specialists ? ` · ${x.specialists} specialists` : ""}
+                      <span className={styles.chips}>
+                        {x.outcomes.map((o, i) => (
+                          <span key={i} className={`${styles.chip} ${styles[OUTCOME_CLASS[o]]}`}>
+                            {o === "correct" ? "ok" : o === "no diagnosis" ? "none" : o === "abstained" ? "abstained" : "wrong"}
+                          </span>
+                        ))}
                       </span>
+                      <span className={styles.where}>{mean.toLocaleString()} tokens on average</span>
                     </td>
                   );
                 })}
@@ -168,13 +187,16 @@ function ResultsByScenario() {
       <div className={styles.callout} style={{ marginTop: "1.5rem" }}>
         <span className={styles.calloutTag}>Reading it</span>
         <p>
-          Every arm diagnosed four of the five faults. Full NEXUS missed resource exhaustion this run (it got it
-          right in the previous one), which is the only accuracy difference and is within run-to-run noise. Triage
-          called 3.2 specialists on average instead of 4, but cost more tokens overall (about 38,000 vs 33,000): it
-          saved 11 to 36 percent on three faults and cost about 75 percent more on the other two, where it called
-          everyone and ran longer Critic loops. So triage reduced agents without reducing cost here. A single model
-          call matched every arm on accuracy at roughly one thirteenth of the tokens. These faults are single-cause
-          and deterministic, so none of this shows that fewer agents would hold up on subtler incidents.
+          Over three runs of five faults (15 fault-runs per arm), every arm was right in 14 or 15 of them: the single
+          call 15, full NEXUS 14, no Critic 14, triage 14. Every miss was the same fault, resource exhaustion, and it
+          moved between arms from run to run, so it looks like noise and not a real difference. Triage called about{" "}
+          {AGG.nexus_triage.avg_specialists} specialists on average instead of 4 and used{" "}
+          {Math.round((1 - tv.triage_tokens / tv.full_tokens) * 100)}% fewer tokens in total (
+          {tv.triage_tokens.toLocaleString()} against {tv.full_tokens.toLocaleString()}), and was cheaper in{" "}
+          {tv.triage_cheaper_in} of {tv.of} fault-runs. So it cut the agents and the cost slightly. An earlier single
+          run had suggested it cost more, which the repeats did not bear out. A single model call matched every arm at
+          roughly one thirteenth of the tokens. These faults are single-cause and deterministic, so none of this shows
+          that fewer agents would hold up on subtler incidents.
         </p>
       </div>
     </>
@@ -226,10 +248,10 @@ function ResearchQuestion() {
           <div className={styles.callout}>
             <span className={styles.calloutTag}>Status</span>
             <p>
-              <b>Measured {bench.timestamp.slice(0, 10)}.</b> Model <code>{bench.model}</code>, 5 scenarios, one
-              run per arm, on the merged code. This is directional, not statistically significant. The &ldquo;full&rdquo;
-              and &ldquo;no critic&rdquo; arms called all four specialists; the triage arm let the Incident Manager choose.
-              The leave-one-out arm has not been built, so it shows no number. Values come from{" "}
+              <b>Measured 2026-10-13 and 2026-10-14.</b> Model <code>{bench.model}</code>, 5 faults, run {bench.n_runs}{" "}
+              times per arm (15 fault-runs per arm), on the merged code. This is a small sample, and the faults are simple.
+              The &ldquo;full&rdquo; and &ldquo;no critic&rdquo; arms called all four specialists; the triage arm let the
+              Incident Manager choose. The leave-one-out arm has not been built, so it shows no number. Values come from{" "}
               <code>evaluation/results/</code>.
             </p>
           </div>
@@ -449,7 +471,7 @@ const ANALYSIS: string[] = [
 ];
 
 const THREATS: [string, string][] = [
-  ["Small sample", "Five scenarios, one run per arm. One flipped run moves accuracy 20 points. Repeats are still needed."],
+  ["Small sample", "Five faults and three runs per arm. The repeats showed that single-run differences can be noise; the faults are still simple."],
   ["Single model", "One runtime model; results may not carry over."],
   ["Scoring", "An earlier keyword-matching scorer mislabelled correct answers and was replaced by the structured fault class. Reports from it are discarded."],
   ["Simulation gap", "The service is deterministic and simpler than real production."],
