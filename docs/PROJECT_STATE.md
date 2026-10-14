@@ -1,5 +1,14 @@
 # NEXUS Project State
 
+## Architecture diagram completed + live recovery check (2026-10-14) — diagram checked in the browser; recovery check run live
+Diagram (`ArchitectureSection.tsx`, on /presentation) now also shows: the simulated shop and the MCP layer under the specialists, the
+Critic's evidence loop back to the specialists via the manager (max 3 rounds), Recovery running only after the Critic approves, and the
+safety path Guardrails -> Human approval -> the only line that changes the shop. Verified in the pane (loop line re-routed below the
+boxes after it first crossed Recovery). **Live recovery check passed**: db_slowdown injected, diagnosed (9 calls, 29,198 tokens),
+`scale_resources` proposed (LOW risk), safety validation passed, approved via `POST /incidents/{id}/approve` BY CLAUDE on the user's
+instruction (no approver token set), executed, verified (shop 270 ms -> 21 ms, 0 failures), incident RESOLVED. Observed: the event log
+has `HUMAN_APPROVAL_GRANTED` twice (backend and orchestrator both emit it); harmless, not fixed.
+
 ## Recorded runs for credit-free demos (2026-10-14) — implemented; typecheck clean; played back in the browser
 Three real full-NEXUS investigations from the 2026-10-13T18-25-37Z benchmark (db slowdown, bad deployment, config error) were
 exported unchanged from `backend/.data/nexus.db` to `dashboard/src/data/recordings/`. They open on the normal investigation page
