@@ -96,3 +96,7 @@
 .result { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.92rem; color: var(--lt-ink-2); }
 .result b { font-size: 1.05rem; font-weight: 500; color: var(--lt-ink); }
 .chipBad { color: #a3261b; background: rgba(163, 38, 27, 0.1); }
+
+.recordedLead { max-width: 52rem; margin: 0 0 1.5rem; font-size: 1.05rem; line-height: 1.55; color: var(--lt-ink-2); }
+.recordedLink { margin-top: 0.4rem; font-weight: 500; color: var(--lt-brand); text-decoration: none; }
+.recordedLink:hover { text-decoration: underline; }

@@ -1,5 +1,12 @@
 # NEXUS Project State
 
+## Recorded runs for credit-free demos (2026-10-14) — implemented; typecheck clean; played back in the browser
+Three real full-NEXUS investigations from the 2026-10-13T18-25-37Z benchmark (db slowdown, bad deployment, config error) were
+exported unchanged from `backend/.data/nexus.db` to `dashboard/src/data/recordings/`. They open on the normal investigation page
+(`/incidents/<id>`, linked from `/research`) with a red "Recorded run, not live" banner and playback controls. Tokens shown for the
+db-slowdown recording (34,445) match the benchmark report. Not a substitute for live runs and never presented as one. Decision
+taken after the user asked about faking data: NO benchmark numbers were invented; the replay only re-plays real saved events.
+
 ## Triage arm benchmarked on the merged code + research page fixes (2026-10-13)
 `evaluation/run_experiment.py` now has a 4th arm `nexus_triage` (Incident Manager triage picks the specialists; the other NEXUS
 arms force all four via `agent_names`) and records `agents_consulted`. Report `evaluation/results/2026-10-13T18-25-37Z.json`

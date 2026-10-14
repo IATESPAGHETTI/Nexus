@@ -1,7 +1,9 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
 import { motion } from "motion/react";
 import { useHashScroll } from "../lib/useHashScroll";
 import { SectionMarker } from "../components/story/StorySections";
+import { listRecordings } from "../api/recordings";
 import bench from "../data/benchmark.json";
 import styles from "./ResearchPage.module.css";
 
@@ -179,6 +181,37 @@ function ResultsByScenario() {
   );
 }
 
+function RecordedRuns() {
+  const runs = listRecordings();
+  if (runs.length === 0) return null;
+  return (
+    <>
+      <h3 className={styles.subhead}>Watch a recorded run</h3>
+      <p className={styles.recordedLead}>
+        These are real investigations from the benchmark above, saved unchanged and played back on the live
+        investigation page with a &ldquo;Recorded run, not live&rdquo; banner. They show the full flow (agents, tools,
+        evidence, hypotheses, Critic, decision) without spending any model credits.
+      </p>
+      <div className={styles.grid}>
+        {runs.map((r) => (
+          <article key={r.incident.incident_id} className={styles.card}>
+            <span className={`${styles.chip} ${styles.chipOn}`}>Recorded</span>
+            <h4 className={styles.cardName}>{r.recording.scenario}</h4>
+            <p className={styles.cardText}>
+              {r.incident.description}
+              <br />
+              Result: {r.recording.outcome}. {r.events.length} events.
+            </p>
+            <Link className={styles.recordedLink} to={`/incidents/${r.incident.incident_id}`}>
+              Watch the recorded run &rarr;
+            </Link>
+          </article>
+        ))}
+      </div>
+    </>
+  );
+}
+
 function ResearchQuestion() {
   return (
     <section id="rq" className={styles.section}>
@@ -237,6 +270,8 @@ function ResearchQuestion() {
         </div>
 
         <ResultsByScenario />
+
+        <RecordedRuns />
 
         <h3 className={styles.subhead}>What counts as &ldquo;reduced without loss&rdquo;</h3>
         <div className={styles.grid}>
