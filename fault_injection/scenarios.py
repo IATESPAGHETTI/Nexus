@@ -16,6 +16,7 @@ from __future__ import annotations
 SCENARIOS = [
     {
         "scenario_id": "FI-bad-deployment",
+        "blind_symptom": "Orders suddenly started failing with errors for some customers. Investigate the cause.",
         "description": (
             "A new deployment introduces a bug in order total calculation, "
             "causing ~35% of /orders and /orders/{id} requests to fail with a 500."
@@ -32,6 +33,7 @@ SCENARIOS = [
     },
     {
         "scenario_id": "FI-db-slowdown",
+        "blind_symptom": "Customers report that order requests are responding slowly. Investigate the cause.",
         "description": "The database becomes slow, adding real latency to every query.",
         "fault_type": "db_slowdown",
         "injection_method": "POST production/admin/fault/inject {\"fault_type\": \"db_slowdown\"}",
@@ -45,6 +47,7 @@ SCENARIOS = [
     },
     {
         "scenario_id": "FI-config-error",
+        "blind_symptom": "Every order request is failing with an error right now. Investigate the cause.",
         "description": (
             "A configuration value is invalid (DB_POOL_SIZE=0), causing every "
             "/orders and /orders/{id} request to fail deterministically."
@@ -61,6 +64,7 @@ SCENARIOS = [
     },
     {
         "scenario_id": "FI-dependency-failure",
+        "blind_symptom": "Looking up a single order takes a long time and then fails. Investigate the cause.",
         "description": "A downstream payment-service dependency becomes unreachable for order-detail lookups.",
         "fault_type": "dependency_failure",
         "injection_method": "POST production/admin/fault/inject {\"fault_type\": \"dependency_failure\"}",
@@ -73,6 +77,7 @@ SCENARIOS = [
     },
     {
         "scenario_id": "FI-resource-exhaustion",
+        "blind_symptom": "The whole shop is getting slower and sometimes refuses requests. Investigate the cause.",
         "description": "The service runs out of available memory/CPU headroom under load.",
         "fault_type": "resource_exhaustion",
         "injection_method": "POST production/admin/fault/inject {\"fault_type\": \"resource_exhaustion\"}",
@@ -86,7 +91,28 @@ SCENARIOS = [
     },
 ]
 
-SCENARIOS_BY_ID = {s["scenario_id"]: s for s in SCENARIOS}
+# Healthy control (no fault is injected). Ground truth is "none": the correct outcome is to NOT name a cause,
+# which is what makes false-diagnosis and abstention-correctness measurable. Kept out of SCENARIOS so the
+# "five fault classes" invariant stays true.
+CONTROL_SCENARIOS = [
+    {
+        "scenario_id": "CTRL-healthy",
+        "description": "No fault is injected; the shop is healthy.",
+        "blind_symptom": "Some customers say the shop might be a little slow today. Investigate the cause.",
+        "fault_type": None,
+        "injection_method": "none (healthy shop with normal customer traffic)",
+        "expected_symptoms": ["normal latency", "no elevated error rate", "no recent bad change"],
+        "ground_truth_root_cause": "none",
+        "recovery_expectation": "no action needed",
+    },
+]
+
+SCENARIOS_BY_ID = {s["scenario_id"]: s for s in [*SCENARIOS, *CONTROL_SCENARIOS]}
+
+
+def blind_symptom(scenario_id: str) -> str:
+    """The only text an agent may be given for this scenario: what a customer would notice, never the cause."""
+    return get_scenario(scenario_id)["blind_symptom"]
 
 
 def get_scenario(scenario_id: str) -> dict:

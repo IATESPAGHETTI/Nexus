@@ -42,8 +42,12 @@ def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained
     made", which is correctness-neutral (not counted as a false diagnosis)
     but also not counted as a correct one."""
     made_a_diagnosis = predicted_root_cause != "unknown" and not abstained
-    correct = made_a_diagnosis and predicted_root_cause == ground_truth_root_cause
-    false_diagnosis = made_a_diagnosis and predicted_root_cause != ground_truth_root_cause
+    if ground_truth_root_cause == "none":  # healthy control: the only correct answer is "no cause found"
+        correct = not made_a_diagnosis
+        false_diagnosis = made_a_diagnosis
+    else:
+        correct = made_a_diagnosis and predicted_root_cause == ground_truth_root_cause
+        false_diagnosis = made_a_diagnosis and predicted_root_cause != ground_truth_root_cause
     return {
         "predicted_root_cause": predicted_root_cause,
         "ground_truth_root_cause": ground_truth_root_cause,
@@ -77,6 +81,14 @@ def aggregate(records: list[dict]) -> dict:
     total = len(records)
     if total == 0:
         return {"total_runs": 0}
+    controls = [r for r in records if r.get("ground_truth_root_cause") == "none"]
+    if controls:  # healthy-control runs are reported separately so they never inflate or deflate fault accuracy
+        faults = [r for r in records if r.get("ground_truth_root_cause") != "none"]
+        out = aggregate(faults) if faults else {"total_runs": 0}
+        out["control_runs"] = len(controls)
+        out["control_correct_rate"] = round(sum(1 for r in controls if r["correct"]) / len(controls), 3)
+        out["control_false_diagnosis_rate"] = round(sum(1 for r in controls if r["false_diagnosis"]) / len(controls), 3)
+        return out
     diagnosed = [r for r in records if r["made_a_diagnosis"]]
     abstained = [r for r in records if r["abstained"]]
     costs = [r["token_cost"] for r in records if isinstance(r.get("token_cost"), dict)]
