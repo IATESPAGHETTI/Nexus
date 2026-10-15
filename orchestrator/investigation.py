@@ -238,6 +238,8 @@ async def _call_evidence_agent(
     budget.record(EVIDENCE_AGENT_NAME, response.pop("usage", None))
     event_bridge.emit_monitor(incident_id, EVIDENCE_AGENT_NAME, response.pop("monitoring", None))
     _persist_usage(incident_id, budget)
+    if response.get("parse_warning"):
+        event_bridge.emit_event(incident_id, "EVIDENCE_PARSE_WARNING", source=EVIDENCE_AGENT_NAME, payload={"warning": response["parse_warning"]})
     hypotheses = response.get("hypotheses", [])
     if not isinstance(hypotheses, list):
         hypotheses = []

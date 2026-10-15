@@ -72,6 +72,20 @@ def _valid_evidence_ids(findings_by_agent: dict) -> set[str]:
     return ids
 
 
+def _as_hypothesis_list(raw):
+    """The prompt asks for a JSON array, but models sometimes wrap it ({"hypotheses": [...]}) or return one bare
+    object. Accept those shapes; anything else is "no usable output" (None), never a guess."""
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        for key in ("hypotheses", "Hypotheses", "results", "items"):
+            if isinstance(raw.get(key), list):
+                return raw[key]
+        if raw.get("statement"):
+            return [raw]
+    return None
+
+
 def build_hypotheses(findings_by_agent: dict, raw_model_output) -> list[dict]:
     """Structurally enforces the Hypothesis schema (docs/API_CONTRACT.md) and
     the evidence-first rule. `hypothesis_id` is always assigned here (never
@@ -80,7 +94,8 @@ def build_hypotheses(findings_by_agent: dict, raw_model_output) -> list[dict]:
     """
     valid_ids = _valid_evidence_ids(findings_by_agent)
     hypotheses: list[dict] = []
-    if not isinstance(raw_model_output, list):
+    raw_model_output = _as_hypothesis_list(raw_model_output)
+    if raw_model_output is None:
         return hypotheses
 
     for i, item in enumerate(raw_model_output, start=1):
@@ -160,7 +175,12 @@ class EvidenceAgent:
 
         raw = await self._reasoner.investigate(question)
         hypotheses = build_hypotheses(findings_by_agent, raw.get("parsed"))
-        return {"hypotheses": hypotheses, "usage": raw.get("usage"), "monitoring": raw.get("monitoring")}
+        result = {"hypotheses": hypotheses, "usage": raw.get("usage"), "monitoring": raw.get("monitoring")}
+        text = raw.get("raw_text") or ""
+        if not hypotheses and len(text.strip()) > 20 and _as_hypothesis_list(raw.get("parsed")) is None:
+            # the model said something, but none of it parsed into hypotheses: say so instead of looking like "nothing to report"
+            result["parse_warning"] = "model reply could not be parsed into hypotheses: " + text.strip()[:200]
+        return result
 
 
 evidence_agent = EvidenceAgent()

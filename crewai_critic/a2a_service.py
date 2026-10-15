@@ -53,7 +53,8 @@ for _parent in Path(__file__).resolve().parents:  # a git worktree has no .env o
         load_dotenv(_parent / ".env")
         break
 
-HOST = "127.0.0.1"
+HOST = os.environ.get("NEXUS_BIND_HOST", "127.0.0.1")
+ADVERTISE = os.environ.get("NEXUS_ADVERTISE_HOST", HOST)
 PORT = int(os.environ.get("CRITIC_PORT", "8106"))
 STUB = os.environ.get("CRITIC_STUB") == "1"
 MODEL = os.environ.get("NEXUS_CREWAI_MODEL", "deepseek/deepseek-chat")
@@ -151,7 +152,7 @@ def build_app():
     card = AgentCard(
         name=AGENT_NAME,
         description=DESCRIPTION + " (CrewAI implementation)",
-        url=f"http://{HOST}:{PORT}/",
+        url=f"http://{ADVERTISE}:{PORT}/",
         version="1.0.0",
         default_input_modes=["text"],
         default_output_modes=["text"],

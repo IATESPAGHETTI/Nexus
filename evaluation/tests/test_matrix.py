@@ -99,3 +99,21 @@ def test_every_benchmark_scenario_has_a_symptom_that_does_not_name_its_cause():
         assert not any(w in text for w in leaks if w not in ("database",)), (s["scenario_id"], text)
     assert scenarios.get_ground_truth("CTRL-healthy")["ground_truth_root_cause"] == "none"
     assert len(scenarios.SCENARIOS) == 5   # control is NOT among the five fault classes
+
+
+def test_classifier_labels_real_pilot_statements_correctly():
+    """Real hypothesis statements produced in the 2026-10-15 pilot (kept as fixtures). The old classifier
+    labelled the configuration statements 'db_slowdown' because they mention DB_POOL_SIZE."""
+    import json
+    fixtures = json.loads((Path(__file__).parent / "real_statements.json").read_text(encoding="utf-8"))
+    assert len(fixtures) >= 5
+    for f in fixtures:
+        assert scoring.classify_statement(f["statement"]) == f["truth"], f["statement"][:120]
+
+
+def test_classifier_ignores_causes_that_are_only_ruled_out():
+    assert scoring.classify_statement("Slow queries on the orders table; no deployment or configuration change explains it.") == "db_slowdown"
+    assert scoring.classify_statement("A bad release introduced the errors, not a database problem.") == "bad_deployment"
+    assert scoring.classify_statement("payment-service timeouts on order lookups") == "dependency_failure"
+    assert scoring.classify_statement("The service is out of memory") == "resource_exhaustion"
+    assert scoring.classify_statement("nothing recognisable here") == "unknown" and scoring.classify_statement(None) == "unknown"

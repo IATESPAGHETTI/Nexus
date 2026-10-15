@@ -9,31 +9,44 @@ strings after the fact.
 
 from __future__ import annotations
 
+import re
+
 # Root-cause keyword vocabulary used to classify a free-text NEXUS Hypothesis
 # statement into one of the fixed fault-type labels -- the only place NEXUS's
 # ADK agents' free-text output is mapped onto the same closed vocabulary the
 # single-agent baseline is asked to answer in directly. Never fed back into
 # any agent prompt.
 ROOT_CAUSE_KEYWORDS = {
-    "bad_deployment": ("deploy", "release", "version", "rollout"),
-    "db_slowdown": ("database", "db ", "query", "sql", "slow"),
-    "config_error": ("config", "configuration", "setting", "pool size"),
-    "dependency_failure": ("dependency", "downstream", "payment-service", "timeout"),
-    "resource_exhaustion": ("resource", "memory", "cpu", "exhaust", "capacity"),
+    "config_error": ("config", "setting", "pool_size", "pool size", "invalid value"),
+    "dependency_failure": ("dependency", "downstream", "upstream", "payment", "timeout", "unreachable"),
+    "resource_exhaustion": ("resource", "memory", "cpu", "exhaust", "capacity", "out of memory"),
+    "bad_deployment": ("deploy", "release", "rollout", "rollback", "new version", "code change"),
+    "db_slowdown": ("database", "db ", "query", "queries", "sql", "slow", "latency"),
 }
+# More specific causes win ties: a configuration fault is usually described with database words ("DB_POOL_SIZE"),
+# but a slow database is never described with configuration words except to rule them out.
+_PRIORITY = ("config_error", "dependency_failure", "resource_exhaustion", "bad_deployment", "db_slowdown")
+
+# Clauses that mention a cause only to exclude it ("no deployment", "not a config issue", "rather than a timeout").
+_NEGATED = re.compile(
+    r"\b(no|not|without|neither|nor|rather than|instead of|ruled out|rules out|unrelated to|excluding|isn't|wasn't)\b[^.;:]{0,60}",
+    re.IGNORECASE,
+)
 
 
 def classify_statement(statement: str | None) -> str:
-    """Best-effort classification of a NEXUS Hypothesis's free-text statement
-    into the closed root-cause vocabulary, for scoring only. Returns
-    "unknown" if no keyword matches -- never guesses."""
+    """Best-effort classification of a NEXUS Hypothesis's free-text statement into the closed root-cause
+    vocabulary, for scoring only (never fed back into any agent). Counts distinct keyword hits per cause after
+    removing clauses that only rule a cause out; the cause with the most hits wins, ties go to the more specific
+    cause. Returns "unknown" when nothing matches -- never guesses."""
     if not statement:
         return "unknown"
-    lowered = statement.lower()
-    for root_cause, keywords in ROOT_CAUSE_KEYWORDS.items():
-        if any(kw in lowered for kw in keywords):
-            return root_cause
-    return "unknown"
+    lowered = _NEGATED.sub(" ", statement.lower())
+    scores = {cause: sum(1 for kw in kws if kw in lowered) for cause, kws in ROOT_CAUSE_KEYWORDS.items()}
+    best = max(scores.values())
+    if best == 0:
+        return "unknown"
+    return next(cause for cause in _PRIORITY if scores[cause] == best)
 
 
 def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained: bool) -> dict:

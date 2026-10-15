@@ -8,6 +8,7 @@ keeps the Phase 3 MCP layer as a standalone, independently-versioned service tha
 agents merely connect to, matching root CLAUDE.md's dependency isolation rule.
 """
 
+import os
 from pathlib import Path
 
 from google.adk.tools.mcp_tool.mcp_session_manager import StdioConnectionParams
@@ -23,11 +24,17 @@ else:
 
 MCP_SERVER_SCRIPT = MCP_DIR / "server.py"
 
+# Containers have one interpreter that holds the MCP dependencies: NEXUS_MCP_PYTHON (a command name or a path)
+# replaces the local .venv-mcp lookup. Unset = unchanged local behaviour.
+_MCP_PYTHON_OVERRIDE = os.environ.get("NEXUS_MCP_PYTHON")
+if _MCP_PYTHON_OVERRIDE:
+    MCP_SERVER_PYTHON = Path(_MCP_PYTHON_OVERRIDE)
+
 MCP_CONNECT_TIMEOUT_SECONDS = 15.0
 
 
 def mcp_server_connection_params() -> StdioConnectionParams:
-    if not MCP_SERVER_PYTHON.exists():
+    if not _MCP_PYTHON_OVERRIDE and not MCP_SERVER_PYTHON.exists():
         raise RuntimeError(
             f"MCP server interpreter not found at {MCP_SERVER_PYTHON}. "
             "Create it first: python -m venv .venv-mcp && "

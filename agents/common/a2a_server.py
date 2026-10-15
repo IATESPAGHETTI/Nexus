@@ -70,9 +70,11 @@ class DiagnosticAgentExecutor(AgentExecutor):
 
 def build_a2a_app(diagnostic_agent, host: str, port: int) -> Starlette:
     adk_agent = diagnostic_agent.build_adk_agent()
+    import os
+
     app = to_a2a(
         adk_agent,
-        host=host,
+        host=os.environ.get("NEXUS_ADVERTISE_HOST", host),
         port=port,
         agent_executor_factory=lambda runner: DiagnosticAgentExecutor(diagnostic_agent),
     )
