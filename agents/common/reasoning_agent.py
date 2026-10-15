@@ -24,6 +24,7 @@ from google.adk.models.lite_llm import LiteLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
 
+from callbacks import AgentMonitor
 from usage_tally import UsageTally
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -82,7 +83,7 @@ class ReasoningAgent:
         self.default_question = default_question
         self.description = description
 
-    def build_adk_agent(self) -> Agent:
+    def build_adk_agent(self, monitor: AgentMonitor | None = None) -> Agent:
         provider, _ = resolve_runtime_config()
         model_kwargs = {"include_reasoning": False} if provider == "groq" else {}
         return Agent(
@@ -91,10 +92,12 @@ class ReasoningAgent:
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[],
+            **(monitor.callbacks() if monitor else {}),
         )
 
     async def investigate(self, question: str) -> dict:
-        agent = self.build_adk_agent()
+        monitor = AgentMonitor(self.agent_name)
+        agent = self.build_adk_agent(monitor)
         runner = InMemoryRunner(agent=agent, app_name=f"nexus_{self.agent_name}")
         session = await runner.session_service.create_session(
             app_name=f"nexus_{self.agent_name}", user_id="nexus"
@@ -114,4 +117,4 @@ class ReasoningAgent:
                 if text:
                     final_text += text
 
-        return {"raw_text": final_text, "parsed": extract_json(final_text), "usage": usage.as_dict()}
+        return {"raw_text": final_text, "parsed": extract_json(final_text), "usage": usage.as_dict(), "monitoring": monitor.summary()}

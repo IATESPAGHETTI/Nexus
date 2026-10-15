@@ -20,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 
 from reasoning_agent import ReasoningAgent  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from nexus_models import Critique, validated  # noqa: E402
+
 AGENT_NAME = "root_cause_critic"
 
 VALID_VERDICTS = {
@@ -106,7 +109,7 @@ def build_critique(hypothesis: dict, evidence_pool: list[dict], raw_model_output
             "INSUFFICIENT_EVIDENCE rather than trust an unparseable judgement"
         )
 
-    return {
+    critique = {
         "critique_id": f"crit-{uuid.uuid4().hex[:8]}",
         "hypothesis_id": hypothesis.get("hypothesis_id") if isinstance(hypothesis, dict) else None,
         "verdict": verdict,
@@ -118,6 +121,7 @@ def build_critique(hypothesis: dict, evidence_pool: list[dict], raw_model_output
         "evidence_pool_size": len(evidence_pool) if isinstance(evidence_pool, list) else 0,
         "timestamp": now_iso(),
     }
+    return validated(Critique, critique)
 
 
 class CriticAgent:
@@ -153,6 +157,7 @@ class CriticAgent:
         critique = build_critique(hypothesis, evidence_pool, raw.get("parsed"))
         # Real model usage; the orchestrator pops it before storing the critique.
         critique["usage"] = raw.get("usage")
+        critique["monitoring"] = raw.get("monitoring")
         return critique
 
 

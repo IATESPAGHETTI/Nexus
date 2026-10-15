@@ -1,5 +1,23 @@
 # NEXUS Project State
 
+## Course minimum-requirements review (2026-10-15)
+- Gap analysis of the 11 course requirements: `docs/REVIEW_GAP_ANALYSIS.md` (review only, no code changed, nothing run).
+- Result: MCP tools met; CrewAI (req. 7) and cloud deployment (req. 11) not started; blackboard, Pydantic models,
+  ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
+- Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
+
+## Pydantic contracts + ADK monitoring callbacks (2026-10-15) — implemented + tested; NOT run against a live LLM
+- `nexus_models.py` (root): Pydantic `Finding/Hypothesis/Critique/RecoveryPlan/IncidentReport`; `build_finding`,
+  `build_hypotheses`, `build_critique`, `build_recovery_plan` now validate their output. `attach_report` stores the final
+  `incident.report` (JSON fields + Markdown) after every investigation (fail-soft).
+- `agents/common/callbacks.py`: `AgentMonitor` wired into `DiagnosticAgent` and `ReasoningAgent` via the real ADK
+  callback hooks; trace travels as `monitoring`, orchestrator pops it into an `AGENT_MONITOR` event (`event_bridge.emit_monitor`).
+- Tests: root 67 (+8 models), agents fast 36 (+4 callbacks, run on the real ADK runner with a scripted fake model,
+  0 tokens), orchestrator deterministic 55 + 3 new, guardrails 24, evaluation 22. The 3 orchestrator tests that fail
+  here (`test_incident_manager` x2, `test_investigation_e2e`) need the live agent services; they were not run.
+- Not verified: a live investigation emitting `monitoring` and `report` (needs agents ON + DeepSeek tokens).
+  Dashboard does not show AGENT_MONITOR or the report yet.
+
 ## Five failures, agent triage, live-section redesign (2026-10-13)
 - **Five injectable failures** in the dashboard (`dashboard/src/lib/scenarios.ts`): slow database, bad release, wrong setting,
   payment service down, out of memory. Each sends only a customer-side symptom to the agents (blind-evaluation rule).

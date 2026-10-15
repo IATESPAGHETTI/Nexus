@@ -25,6 +25,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 
 from reasoning_agent import ReasoningAgent  # noqa: E402
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from nexus_models import Hypothesis, validated  # noqa: E402
+
 AGENT_NAME = "evidence_agent"
 
 INSTRUCTION = (
@@ -125,7 +128,7 @@ def build_hypotheses(findings_by_agent: dict, raw_model_output) -> list[dict]:
         )
 
     hypotheses.sort(key=lambda h: h["confidence"], reverse=True)
-    return hypotheses
+    return [validated(Hypothesis, h) for h in hypotheses]
 
 
 class EvidenceAgent:
@@ -157,7 +160,7 @@ class EvidenceAgent:
 
         raw = await self._reasoner.investigate(question)
         hypotheses = build_hypotheses(findings_by_agent, raw.get("parsed"))
-        return {"hypotheses": hypotheses, "usage": raw.get("usage")}
+        return {"hypotheses": hypotheses, "usage": raw.get("usage"), "monitoring": raw.get("monitoring")}
 
 
 evidence_agent = EvidenceAgent()

@@ -28,6 +28,7 @@ from google.adk.runners import InMemoryRunner
 from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
+from callbacks import AgentMonitor
 from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import mcp_server_connection_params
 from usage_tally import UsageTally
@@ -71,7 +72,7 @@ class DiagnosticAgent:
         self.default_question = default_question
         self.description = description
 
-    def build_adk_agent(self) -> Agent:
+    def build_adk_agent(self, monitor: AgentMonitor | None = None) -> Agent:
         toolset = McpToolset(
             connection_params=mcp_server_connection_params(),
             tool_filter=self.allowed_tools,
@@ -84,10 +85,12 @@ class DiagnosticAgent:
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[toolset],
+            **(monitor.callbacks() if monitor else {}),
         )
 
     async def investigate(self, question: str) -> dict:
-        agent = self.build_adk_agent()
+        monitor = AgentMonitor(self.agent_name)
+        agent = self.build_adk_agent(monitor)
         runner = InMemoryRunner(agent=agent, app_name=f"nexus_{self.agent_name}")
         session = await runner.session_service.create_session(
             app_name=f"nexus_{self.agent_name}", user_id="nexus"
@@ -160,4 +163,6 @@ class DiagnosticAgent:
         # Real model usage for this task; the orchestrator pops it off before the
         # Finding is stored or shown to other agents (orchestrator/budget.py).
         finding["usage"] = usage.as_dict()
+        # Callback trace; the orchestrator pops it and stores it as an AGENT_MONITOR event.
+        finding["monitoring"] = monitor.summary()
         return finding

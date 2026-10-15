@@ -41,6 +41,12 @@ of any kind (see `recovery/agent.py` below and `guardrails/CLAUDE.md`).
   - `remote_agent.py` — `build_remote_agent(name, description)` returns a real
     `google.adk.agents.RemoteA2aAgent` client proxy pointed at that agent's real
     Agent Card URL.
+  - `callbacks.py` (2026-10-15) — `AgentMonitor`: real ADK callbacks (before/after model, before/after
+    tool, tool/model error, after agent) attached in `build_adk_agent(monitor)`. Observe-only (all return
+    None). Records keys/sizes/durations, never argument values or results. Summary returns under a
+    `monitoring` key; the orchestrator pops it and stores an `AGENT_MONITOR` event. Tested with a scripted
+    fake model on the real ADK runner (`tests/test_callbacks.py`, 0 tokens).
+  - Contracts: `nexus_models.py` (repo root) holds Pydantic models; every `build_*` function validates its output.
 - `metrics/agent.py` + `metrics/a2a_service.py` — Metrics Agent. Tools: `get_metrics`.
 - `logs_traces/agent.py` + `logs_traces/a2a_service.py` — Logs & Traces Agent.
   Tools: `query_logs`, `get_trace`.

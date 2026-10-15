@@ -61,6 +61,23 @@ def emit_event(
     return response.json()
 
 
+def emit_monitor(incident_id: str, agent: str, monitoring: Any) -> None:
+    """Stores an agent's callback trace (agents/common/callbacks.py) as an
+    AGENT_MONITOR event. Fail-soft: monitoring must never break an investigation."""
+    if not isinstance(monitoring, dict):
+        return
+    try:
+        emit_event(
+            incident_id,
+            "AGENT_MONITOR",
+            source=agent,
+            status="errors" if monitoring.get("errors") else "ok",
+            payload=monitoring,
+        )
+    except Exception:  # noqa: BLE001
+        pass
+
+
 def update_state(incident_id: str, **fields: Any) -> dict:
     response = httpx.post(
         f"{BACKEND_URL}/incidents/{incident_id}/state", json=fields, timeout=_TIMEOUT
