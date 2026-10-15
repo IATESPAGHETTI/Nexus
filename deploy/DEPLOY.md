@@ -5,6 +5,27 @@ NEXUS runs as 11 containers from one `docker-compose.yml`: the simulated shop (`
 (`--profile crewai`). Status: **compose file validated (`docker compose config`); images not yet built or run here
 because Docker Desktop's engine was not running** (see `docs/PROJECT_STATE.md` for the latest verification).
 
+## 0. Free, no credit card: Hugging Face Spaces (single container)
+
+A free Space can run one Docker container (2 vCPU, 16 GB RAM) with no card. `Dockerfile.space` packs everything into that one
+container (nginx + backend + shop + orchestrator + 7 agents under supervisord, talking over localhost).
+
+1. Create a free account at huggingface.co, then **New Space -> SDK: Docker -> Blank**; choose *Private* if you do not want it public.
+2. Space **Settings -> Variables and secrets**, add secrets: `DEEPSEEK_API_KEY`, `DASHBOARD_PASSWORD`, `NEXUS_APPROVER_TOKEN`, `NEXUS_INTERNAL_TOKEN`.
+3. From a clone of this repository, build the upload folder and push it (use a Hugging Face access token with *write* permission as the password):
+
+```bash
+sh deploy/space/make_bundle.sh /tmp/nexus-space
+cd /tmp/nexus-space && git init && git add -A && git commit -m "NEXUS"
+git remote add space https://huggingface.co/spaces/<your-user>/<space-name>
+git push space HEAD:main
+```
+
+The Space builds the image (about 10 minutes the first time) and serves the dashboard at `https://<your-user>-<space-name>.hf.space`
+(log in with `nexus` / your `DASHBOARD_PASSWORD`). Limits: the free tier sleeps after inactivity, the disk is not persistent
+(incident history is lost on restart), and only the dashboard port is public. Check Hugging Face's current free-tier terms.
+Status: `Dockerfile.space` is written; see `docs/PROJECT_STATE.md` for whether it has been built and run locally.
+
 ## 1. Run it locally first
 
 ```bash
