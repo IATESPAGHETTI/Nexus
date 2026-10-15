@@ -6,6 +6,11 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## CrewAI + A2A spike (2026-10-15) — passed; Critic not yet migrated
+- `crewai_critic/SPIKE_RESULT.md`: CrewAI 1.15.28 has no A2A server, so a2a-sdk 0.3.26 serves a real CrewAI agent; the ADK
+  client (a2a-sdk 1.1.4) called it over A2A (stub run 0 tokens, then one real DeepSeek call, <1k tokens). Isolated `.venv-crewai`.
+- Next: build the real CrewAI Critic service (new port, Pydantic output, usage/monitoring), orchestrator switch, tests.
+
 ## Pydantic contracts + ADK monitoring callbacks (2026-10-15) — implemented + tested; NOT run against a live LLM
 - `nexus_models.py` (root): Pydantic `Finding/Hypothesis/Critique/RecoveryPlan/IncidentReport`; `build_finding`,
   `build_hypotheses`, `build_critique`, `build_recovery_plan` now validate their output. `attach_report` stores the final

@@ -1,0 +1,2 @@
+crewai[a2a]==1.15.28
+a2a-sdk[http-server]==0.3.26
