@@ -128,6 +128,7 @@ class IncidentReport(_Base):
     recovery_actions: list[str] = Field(default_factory=list)
     approval: Optional[str] = None
     loops_used: int = 0
+    run_config: dict[str, Any] = Field(default_factory=dict)
     total_tokens: Optional[int] = None
     llm_calls: Optional[int] = None
 
@@ -166,6 +167,8 @@ class IncidentReport(_Base):
             lines.append(f"\nApproval: {self.approval or 'n/a'}")
         else:
             lines.append("No recovery plan was proposed.")
+        if self.run_config:
+            lines += ["", "## Run configuration", ""] + [f"- {k}: {v}" for k, v in self.run_config.items()]
         lines += ["", "## Cost", ""]
         if self.total_tokens is None:
             lines.append("Token usage not recorded.")
@@ -207,6 +210,7 @@ def build_incident_report(incident: dict) -> IncidentReport:
         recovery_actions=[a.get("action", "") for a in plan.get("actions", [])],
         approval=(incident.get("approval_state") or {}).get("decision"),
         loops_used=decision.get("loops_used", 0),
+        run_config=incident.get("run_config") or {},
         total_tokens=usage.get("total_tokens"),
         llm_calls=usage.get("llm_calls"),
     )

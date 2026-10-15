@@ -43,6 +43,8 @@ from dotenv import load_dotenv  # noqa: E402
 from callbacks import AgentMonitor  # noqa: E402
 from critic_core import AGENT_NAME, DESCRIPTION, INSTRUCTION, build_critique  # noqa: E402
 from json_extract import extract_json  # noqa: E402
+from prompt_variants import apply_variant  # noqa: E402
+from nexus_guard import redact_text  # noqa: E402
 
 for _parent in Path(__file__).resolve().parents:  # a git worktree has no .env of its own
     if (_parent / ".env").exists():
@@ -62,7 +64,7 @@ def run_crewai(payload_text: str, monitor: AgentMonitor) -> tuple[str, dict]:
     agent = Agent(
         role="NEXUS Root-Cause Critic",
         goal="Independently challenge the hypothesis under review using only the evidence given.",
-        backstory=INSTRUCTION,
+        backstory=apply_variant(INSTRUCTION, AGENT_NAME),
         llm=LLM(model=MODEL, api_key=os.environ["DEEPSEEK_API_KEY"], temperature=0, max_tokens=1500),
         allow_delegation=False,
         verbose=False,
@@ -95,6 +97,11 @@ def run_crewai(payload_text: str, monitor: AgentMonitor) -> tuple[str, dict]:
 
 def critique_for(question: str) -> dict:
     """Pure function used by the A2A executor and by tests."""
+    monitor = AgentMonitor(AGENT_NAME)
+    if os.environ.get("NEXUS_GUARDRAILS", "1") != "0":
+        question, guard_flags = redact_text(question)  # same layer as the ADK agents' tool-output guard
+        if guard_flags:
+            monitor._add("input_redacted", flags=guard_flags)
     try:
         payload = json.loads(question)
     except json.JSONDecodeError:
@@ -104,7 +111,6 @@ def critique_for(question: str) -> dict:
     hypothesis = payload.get("hypothesis") or {}
     evidence_pool = payload.get("evidence_pool") or []
 
-    monitor = AgentMonitor(AGENT_NAME)
     if STUB:
         raw_text = json.dumps({"verdict": "INSUFFICIENT_EVIDENCE", "rationale": "stub mode (no model call)"})
         usage = {"llm_calls": 0, "prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}

@@ -29,6 +29,8 @@ from google.adk.tools.mcp_tool.mcp_toolset import McpToolset
 from google.genai import types
 
 from callbacks import AgentMonitor
+from guard_callbacks import AgentGuard, guardrails_enabled, merge_callbacks
+from prompt_variants import apply_variant
 from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import mcp_server_connection_params
 from usage_tally import UsageTally
@@ -67,10 +69,22 @@ class DiagnosticAgent:
         description: str = "",
     ):
         self.agent_name = agent_name
-        self.instruction = instruction + DEFAULT_INSTRUCTION_SUFFIX
+        self.instruction = apply_variant(instruction + DEFAULT_INSTRUCTION_SUFFIX, agent_name)
         self.allowed_tools = allowed_tools
         self.default_question = default_question
         self.description = description
+
+    @staticmethod
+    def _callbacks(monitor: AgentMonitor | None) -> dict:
+        """Monitor first (observe-only), then the security guard (may modify/block)."""
+        if monitor is None:
+            return {}
+        parts = [monitor.callbacks()]
+        if guardrails_enabled():
+            guard = AgentGuard(monitor, check_abuse=True)
+            monitor.guard = guard
+            parts.append(guard.callbacks())
+        return merge_callbacks(*parts)
 
     def build_adk_agent(self, monitor: AgentMonitor | None = None) -> Agent:
         toolset = McpToolset(
@@ -85,7 +99,7 @@ class DiagnosticAgent:
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[toolset],
-            **(monitor.callbacks() if monitor else {}),
+            **self._callbacks(monitor),
         )
 
     async def investigate(self, question: str) -> dict:

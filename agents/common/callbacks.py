@@ -27,6 +27,15 @@ MAX_RECORDS = 200  # a runaway agent must not grow the trace without bound
 _MAX_MSG = 200
 
 
+def _variant() -> str:
+    try:
+        from prompt_variants import current_variant
+
+        return current_variant()[0]
+    except Exception:  # noqa: BLE001
+        return "unknown"
+
+
 def _size(value: Any) -> int:
     try:
         return len(json.dumps(value, default=str))
@@ -42,6 +51,7 @@ class AgentMonitor:
         self._model_started: float | None = None
         self._tool_started: dict[str, float] = {}
         self._run_started = time.perf_counter()
+        self.guard = None  # set by build_adk_agent when guardrails are on
 
     # ------------------------------------------------------------ plumbing
     def _add(self, kind: str, **fields: Any) -> None:
@@ -126,10 +136,16 @@ class AgentMonitor:
         tool_done = [r for r in self.records if r["kind"] == "tool_call_finished"]
         return {
             "agent": self.agent_name,
+            "prompt_variant": _variant(),
             "model_calls": sum(1 for r in self.records if r["kind"] == "model_call_finished"),
             "tool_calls": len(tool_done),
             "tool_calls_not_ok": sum(1 for r in tool_done if r.get("ok") is False),
             "errors": len(errors),
             "truncated": len(self.records) >= MAX_RECORDS,
+            "guardrails": {
+                "enabled": self.guard is not None,
+                "inputs_blocked": len(self.guard.blocked) if self.guard else 0,
+                "tool_outputs_flagged": len(self.guard.tool_flags) if self.guard else 0,
+            },
             "records": self.records,
         }

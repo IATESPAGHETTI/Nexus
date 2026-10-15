@@ -44,6 +44,7 @@ from budget import IncidentBudget  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
 import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
+from nexus_guard import screen_user_text  # noqa: E402
 from nexus_models import build_incident_report  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
@@ -301,6 +302,34 @@ async def run_investigation(
     incident_id = incident_id or event_bridge.create_incident(incident_description)
     event_bridge.emit_event(
         incident_id, "INCIDENT_CREATED", source="incident_manager", payload={"description": incident_description}
+    )
+
+    # Input guardrail (course requirement 8): abusive or prompt-injecting text never reaches a model.
+    if os.environ.get("NEXUS_GUARDRAILS", "1") != "0":
+        screening = screen_user_text(incident_description)
+        if not screening.allowed:
+            reason = screening.reason
+            event_bridge.emit_event(
+                incident_id, "INPUT_REJECTED", source="input_guardrail", status="blocked", payload=screening.as_dict()
+            )
+            event_bridge.update_state(
+                incident_id,
+                status="ABSTAINED",
+                decision={"outcome": "ABSTAINED", "reason": reason, "loops_used": 0, "max_loops": max_loops},
+            )
+            return attach_report(incident_id)
+
+    # Run configuration, stored so every result states which variant produced it.
+    event_bridge.update_state(
+        incident_id,
+        run_config={
+            "prompt_variant": os.environ.get("NEXUS_PROMPT_VARIANT", "default"),
+            "guardrails": os.environ.get("NEXUS_GUARDRAILS", "1") != "0",
+            "critic_framework": os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk"),
+            "triage": use_triage,
+            "skip_critic": skip_critic,
+            "llm": os.environ.get("NEXUS_LLM_PROVIDER", "deepseek"),
+        },
     )
 
     if use_triage:

@@ -25,6 +25,8 @@ from google.adk.runners import InMemoryRunner
 from google.genai import types
 
 from callbacks import AgentMonitor
+from prompt_variants import apply_variant
+from guard_callbacks import AgentGuard, guardrails_enabled, merge_callbacks
 from json_extract import extract_json  # noqa: F401  (re-exported: other modules import it from here)
 from usage_tally import UsageTally
 
@@ -48,9 +50,21 @@ class ReasoningAgent:
 
     def __init__(self, agent_name: str, instruction: str, default_question: str, description: str = ""):
         self.agent_name = agent_name
-        self.instruction = instruction
+        self.instruction = apply_variant(instruction, agent_name)
         self.default_question = default_question
         self.description = description
+
+    @staticmethod
+    def _callbacks(monitor: AgentMonitor | None, check_abuse: bool = False) -> dict:
+        """Monitor first (observe-only), then the security guard (may modify/block)."""
+        if monitor is None:
+            return {}
+        parts = [monitor.callbacks()]
+        if guardrails_enabled():
+            guard = AgentGuard(monitor, check_abuse=check_abuse)
+            monitor.guard = guard
+            parts.append(guard.callbacks())
+        return merge_callbacks(*parts)
 
     def build_adk_agent(self, monitor: AgentMonitor | None = None) -> Agent:
         provider, _ = resolve_runtime_config()
@@ -61,7 +75,7 @@ class ReasoningAgent:
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
             instruction=self.instruction,
             tools=[],
-            **(monitor.callbacks() if monitor else {}),
+            **self._callbacks(monitor, check_abuse=False),
         )
 
     async def investigate(self, question: str) -> dict:

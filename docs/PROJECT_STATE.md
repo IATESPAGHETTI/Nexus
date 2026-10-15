@@ -6,6 +6,19 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Security guardrails + prompt variants (2026-10-15) — implemented + tested (0 tokens); NOT yet run live
+- `nexus_guard.py`: `screen_user_text` (abuse, prompt injection, empty/too long), `guard_tool_result` (type check, size bound,
+  redaction of instruction-like text, flags), `redact_text`. `agents/common/guard_callbacks.py` applies them as ADK callbacks
+  (before_model blocks a bad first message; after_tool sanitises results, so stored evidence is the sanitised version) chained
+  after the monitor. CrewAI Critic redacts its input too. Orchestrator rejects bad descriptions: `INPUT_REJECTED`, status
+  ABSTAINED, no agent called. Honest limit: regex heuristics (tested for false positives on normal log lines), not a proof.
+- Red-team tests run on the real ADK runner with a spy model: hostile text in a log line never reaches the model; an injected
+  question never causes a model call (`agents/tests/test_guard_callbacks.py`).
+- `agents/common/prompt_variants.py`: default / react / fewshot / persona_sre / persona_auditor (architecture vs content
+  variance), contract text never edited, no scenario causes named (tested). `run_config` (variant, guardrails, critic framework,
+  triage, llm) is stored on each incident and printed in the report; AGENT_MONITOR carries `prompt_variant`.
+- Tests: root 83, agents fast 63, orchestrator logic 53, crewai_critic 3. Agent services must be restarted to pick up new code.
+
 ## CrewAI Critic over A2A (2026-10-15) — implemented + tested; verified live twice
 - `crewai_critic/` (see its CLAUDE.md): the Root-Cause Critic as a CrewAI agent behind an a2a-sdk server, same address and
   contract as the ADK Critic; select with `NEXUS_CRITIC_FRAMEWORK=crewai` (default ADK). Shared ADK-free
