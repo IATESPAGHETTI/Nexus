@@ -11,8 +11,7 @@ re-scored with the final scorer (`--report-only`). Per-run data: `evaluation/res
   easy to read from one flat snapshot, so a multi-agent system has little room to add accuracy. The multi-agent value that IS demonstrated is
   auditability (evidence ids, per-agent tool calls, critic challenge, provenance, human-approved recovery), not accuracy on these scenarios.
 - **The critic did not improve accuracy here.** Without the critic (`hub_no_critic`) accuracy was 100% with no abstentions; with it, 80%
-  with 13% false diagnoses and 7% abstention. A plausible reading is that the critic sometimes rejects a correct hypothesis or asks for
-  evidence the tools cannot give, causing abstentions or a switch to a worse hypothesis. This was not diagnosed run-by-run, so it is a hypothesis, not a finding.
+  with 13% false diagnoses and 7% abstention. See the offline critic analysis below: the gap is not significant (p = 0.16) and sits almost entirely in one ambiguous scenario.
   The healthy control was handled correctly by every arm except ReAct (2 of 3), so the critic's possible benefit (avoiding false positives)
   is not visible in this data either.
 - **Blackboard vs hub-and-spoke:** 67% vs 80% accuracy, 22 s vs 18 s, 11.6 vs 11.0 model calls: no reliable difference at this sample size.
@@ -26,6 +25,33 @@ re-scored with the final scorer (`--report-only`). Per-run data: `evaluation/res
 - **Scorer.** The first scorer mislabelled correct configuration diagnoses (keyword order bug) and a statement that only ruled causes out. Both were fixed
   and tested on the real statements, and every run was re-scored by the same final scorer. Abstention counts as "not correct" and not as a false diagnosis.
 - **Not measured:** recovery success (recovery is excluded from every arm), held-out scenarios, other models, concurrent load.
+
+## Critic analysis (offline, from the 126 stored investigations; no model calls)
+
+Pooling the two critic arms (ADK and CrewAI critic, 30 fault runs) against the no-critic arm (15 fault runs):
+
+| | Correct | Wrong or abstained |
+|---|---|---|
+| With critic | 24 (80%) | 6 |
+| Without critic | 15 (100%) | 0 |
+
+Fisher exact test, two-sided: p = 0.16. **The gap is not statistically significant**, and 5 of the 6 failures are in one ambiguous scenario
+(resource exhaustion: critic arms 2/6, no-critic 3/3; every other scenario differs by at most one run).
+
+What the stored runs show:
+- **The critic mostly approves.** Of 39 verdicts, 28 were SUPPORTED, 7 INSUFFICIENT_EVIDENCE, 2 REQUEST_MORE_EVIDENCE, 2 CONTRADICTED.
+- **When it approved on the first review** (23 runs) the diagnosis was right 21 times (91%). **When it asked for more evidence and the loop ran again**
+  (7 runs) it was right 3 times (43%). Re-evaluation is where accuracy drops; ambiguous cases enter the loop and the loop did not rescue them.
+- **It can approve a wrong hypothesis.** Examples: resource exhaustion approved as "database slowdown" (a latency step-change was real but the 500s
+  carried a memory error); a database slowdown approved as a dependency failure. A critic that only checks "does anything in the pool contradict this?"
+  cannot catch a wrong cause that is consistent with the evidence it was shown.
+- **It still asks for evidence no tool can return** (memory/GC time series, connection-pool statistics) even though its prompt lists what exists,
+  which produced the 3-loop abstentions on resource exhaustion.
+- A mechanism that would test the system's weakest point: give the critic an explicit alternative-hypothesis check (e.g. "which different cause would
+  also explain this evidence, and what discriminating tool call separates them?"). Not implemented; it would need new live runs to evaluate.
+
+Limits: n is small, the Evidence Agent's sampling varies run to run (so "critic effect" is confounded with sampling noise), and the one
+scenario driving the gap is also the one with the least clear evidence in this simulator.
 
 ## Generated report
 
