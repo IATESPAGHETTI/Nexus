@@ -8,11 +8,11 @@ contains, using the root `CLAUDE.md` vocabulary.
 |---|---|---|---|
 | 1 | Shared state, compare messaging architectures, **Blackboard** | partially implemented | Hub-and-spoke only; no blackboard; no comparison |
 | 2 | MCP tools (>= 2) | implemented + tested | 7 MCP tools (git diff disabled by default) |
-| 3 | Pydantic structured output | partially implemented | Pydantic only in backend/production; agents pass plain dicts |
+| 3 | Pydantic structured output | implemented + tested (2026-10-15) | `nexus_models.py`; builders validate; final `IncidentReport` JSON+Markdown |
 | 4 | Agentic design patterns, compared | partially implemented | Several patterns present, none compared |
-| 5 | Monitoring via callbacks | partially implemented | Event bridge exists; no ADK/CrewAI callbacks |
-| 6 | A2A, ADK <-> CrewAI interop | partially implemented | Real A2A (a2a-sdk); both ends are ADK |
-| 7 | Both CrewAI and ADK | **not implemented** | CrewAI appears nowhere in the repo |
+| 5 | Monitoring via callbacks | implemented + tested (2026-10-15) | ADK callbacks -> AGENT_MONITOR events; CrewAI side records around the call |
+| 6 | A2A, ADK <-> CrewAI interop | implemented + tested (Critic) | ADK client -> CrewAI Critic over A2A, verified live 2026-10-15 |
+| 7 | Both CrewAI and ADK | implemented + tested (Critic) | `crewai_critic/`; one agent only, others ADK |
 | 8 | Guardrails, input/tool-return validation, prompt variance | partially implemented | Recovery guardrails strong; input side absent |
 | 9 | Observability: tracing, auditability, provenance | partially implemented | Event store + audit logs; no distributed trace |
 | 10 | End-to-end evaluation, cost/time, prompt variance | partially implemented | 3-arm harness; no repeats, no prompt variants, no dollar cost |

@@ -456,6 +456,7 @@ async def run_investigation(
         token_usage=budget.snapshot(),
     )
     event_bridge.emit_event(incident_id, "INCIDENT_STATUS_CHANGED", source="incident_manager", payload={"status": decision})
+    attach_report(incident_id)  # available while a human decides; rebuilt after recovery below
 
     if decision == "DIAGNOSED" and trigger_recovery:
         stop = budget.exceeded()

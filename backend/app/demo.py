@@ -166,6 +166,17 @@ AGENT_SCRIPTS: dict[str, str] = {
     "recovery_agent": "agents/recovery/a2a_service.py",
 }
 AGENTS_PYTHON = REPO_ROOT / ".venv-agents" / "Scripts" / "python.exe"
+CREWAI_PYTHON = REPO_ROOT / ".venv-crewai" / "Scripts" / "python.exe"
+CREWAI_CRITIC_SCRIPT = "crewai_critic/a2a_service.py"
+
+
+def _launch_spec(name: str, script: str) -> tuple[Path, str]:
+    """Which interpreter + script starts this agent. Only the Critic can change, and only
+    when the OWNER sets NEXUS_CRITIC_FRAMEWORK=crewai (env, never request input): it is then
+    served by the CrewAI implementation (own venv) at the same A2A address."""
+    if name == "root_cause_critic" and os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk").lower() == "crewai":
+        return CREWAI_PYTHON, CREWAI_CRITIC_SCRIPT
+    return AGENTS_PYTHON, script
 _BOOT_GRACE_SECONDS = 60.0
 _spawned_at: dict[str, float] = {}
 _spawned_procs: dict[str, subprocess.Popen] = {}
@@ -191,10 +202,14 @@ def start_agents() -> dict:
         if not died and time.monotonic() - _spawned_at.get(name, -1e9) < _BOOT_GRACE_SECONDS:
             started.append(name)  # launched moments ago, still booting
             continue
+        python, script = _launch_spec(name, script)
+        if not python.exists():
+            failed.append(name)
+            continue
         try:
             with open(DEMO_LOG_DIR / f"agent-{name}.log", "w", encoding="utf-8") as log_file:
                 proc = subprocess.Popen(
-                    [str(AGENTS_PYTHON), str(REPO_ROOT / script)],
+                    [str(python), str(REPO_ROOT / script)],
                     cwd=str(REPO_ROOT),
                     stdout=log_file,
                     stderr=subprocess.STDOUT,

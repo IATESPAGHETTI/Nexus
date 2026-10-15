@@ -6,7 +6,18 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
-## CrewAI + A2A spike (2026-10-15) — passed; Critic not yet migrated
+## CrewAI Critic over A2A (2026-10-15) — implemented + tested; verified live twice
+- `crewai_critic/` (see its CLAUDE.md): the Root-Cause Critic as a CrewAI agent behind an a2a-sdk server, same address and
+  contract as the ADK Critic; select with `NEXUS_CRITIC_FRAMEWORK=crewai` (default ADK). Shared ADK-free
+  `agents/critic/critic_core.py` and `agents/common/json_extract.py` were split out of the ADK modules.
+- Live runs (DeepSeek, db_slowdown, backend + shop + 7 agents started through the real ON switch): both DIAGNOSED, critic
+  `framework=crewai` SUPPORTED, 9 model calls / 16,559 and 17,165 tokens (recovery calls not counted), AGENT_MONITOR events
+  from 5-6 agents, final report stored (now built at diagnosis time too). Approval was not clicked. Cost of both runs ~ $0.01
+  (balance 1.48 -> 1.48, granted 0.94 -> 0.93): real runs are much cheaper than the earlier 80k-token estimate.
+- Tests: root 67 + guardrails 24, agents fast 36, orchestrator/eval 81 (incl. ADK->CrewAI A2A), crewai_critic 3.
+  Not in CI yet (needs `.venv-crewai`).
+
+## CrewAI + A2A spike (2026-10-15) — passed
 - `crewai_critic/SPIKE_RESULT.md`: CrewAI 1.15.28 has no A2A server, so a2a-sdk 0.3.26 serves a real CrewAI agent; the ADK
   client (a2a-sdk 1.1.4) called it over A2A (stub run 0 tokens, then one real DeepSeek call, <1k tokens). Isolated `.venv-crewai`.
 - Next: build the real CrewAI Critic service (new port, Pydantic output, usage/monitoring), orchestrator switch, tests.
