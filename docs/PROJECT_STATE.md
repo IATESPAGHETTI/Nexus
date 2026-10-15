@@ -6,6 +6,20 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Azure deployment + experiment matrix results (2026-10-16)
+- **Azure for Students VM is LIVE**: `Standard_B2as_v2` (2 vCPU, 8 GB) in Central India, Docker Compose full stack + Caddy HTTPS
+  (`deploy/AZURE.md`, `docker-compose.tls.yml`). Verified on the VM: all 5 images built on Linux, 12 containers up (backend, orchestrator,
+  shop healthy), `/demo/status` = 7 of 7 agents reachable over the Docker network, dashboard reachable over HTTPS behind basic auth.
+  NOT yet verified there: a full investigation through the cloud dashboard, Approve -> execute -> verify, the CrewAI critic profile.
+  The images were not built/run on Docker Desktop locally (the VM build is the verification). The student region policy only allows
+  indiasouthcentral, malaysiawest, uaenorth, centralindia, koreacentral; `Standard_B2ms` was out of capacity in centralindia.
+- **Cost control**: VM costs ~$60-70/month running; deallocate (`az vm deallocate`) between uses. End-term is late Nov / early Dec 2026.
+- **Experiment matrix finished**: 8 arms x 6 scenarios (5 faults + healthy control) x 3 repeats = 144 live runs; results and an honest
+  interpretation in `docs/EVALUATION_RESULTS_2026-10-16.md`. Headline: the single-agent baseline scored 87% (cheapest/fastest), the
+  no-critic arm 100%, shipped hub 80%, blackboard 67%, few-shot 40%; differences are mostly within noise (n=18 per arm).
+  Real cost ~ $0.004/run (estimate at peak list price is ~3x higher).
+- Pilot findings fixed on the way: non-blind scenario text in the old benchmark, scorer keyword-order bug, evidence-agent output shapes.
+
 ## Platform mode + cloud deployment files (2026-10-16) — implemented + unit-tested; images NOT built or run (Docker engine was off)
 - Full stack in `docker-compose.yml` (production, backend, orchestrator, 7 agent services, dashboard; optional CrewAI critic via
   `--profile crewai`); Dockerfiles: `agents/` (one image, 7 commands), `orchestrator/`, `crewai_critic/`, `dashboard/` (nginx).
