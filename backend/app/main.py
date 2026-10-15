@@ -145,6 +145,40 @@ def get_incident(incident_id: str) -> dict:
     return incident
 
 
+class BoardEntryCreate(BaseModel):
+    type: str
+    author: str
+    content: dict[str, Any]
+    trace_id: str | None = None
+
+
+@app.post("/incidents/{incident_id}/blackboard")
+def post_board_entry(incident_id: str, body: BoardEntryCreate) -> dict:
+    """Blackboard write (see incident_store.append_board_entry). Only the six known entry types are accepted
+    and an author is required, so the board stays a typed, attributable record."""
+    if body.type not in incident_store.BOARD_ENTRY_TYPES:
+        raise HTTPException(status_code=422, detail=f"unknown blackboard entry type {body.type!r}")
+    try:
+        entry = incident_store.append_board_entry(incident_id, body.type, body.author, body.content, body.trace_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    if entry is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    incident_store.append_event(
+        incident_id, "BOARD_ENTRY", body.author, None, None,
+        {"entry_id": entry["entry_id"], "type": body.type, "trace_id": body.trace_id},
+    )
+    return entry
+
+
+@app.get("/incidents/{incident_id}/blackboard")
+def read_board(incident_id: str, type: str | None = None) -> dict:
+    entries = incident_store.get_board(incident_id, type)
+    if entries is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    return {"entries": entries}
+
+
 @app.post("/incidents/{incident_id}/state")
 def update_incident_state(incident_id: str, body: IncidentStateUpdate) -> dict:
     incident = incident_store.update_incident(incident_id, body.model_dump(exclude_unset=True))

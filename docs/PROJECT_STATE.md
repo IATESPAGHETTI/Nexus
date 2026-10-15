@@ -6,6 +6,20 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Blackboard topology (2026-10-15) — implemented + tested (0 tokens, real backend + real A2A, fake reasoning); NOT yet run live
+- `NEXUS_TOPOLOGY=blackboard` (default `hub`). The shared board is the incident record's `blackboard` list
+  (`backend/app/incident_store.py::append_board_entry`, `POST/GET /incidents/{id}/blackboard`, six typed entries, atomic,
+  bounded at 200, each write also emits a `BOARD_ENTRY` event). In this mode the A2A message is only a pointer
+  (`{"nexus_board": {incident_id, role}}`); the AGENT reads the board (`agents/common/board_io.py`), does its work and WRITES its
+  `finding` / `hypotheses` / `critique` back; the controller (`orchestrator/blackboard.py`) posts `description` / `request` /
+  `review_request` and reads the results back. Same return shapes as the hub calls, so the verdict loop, budget, guardrails,
+  recovery, report and trace run unchanged. Usage/monitoring bookkeeping rides in the A2A ack, never on the board.
+- Both frameworks support it (ADK executor and the CrewAI critic). The backend address is NOT taken from the message (no SSRF).
+- Proven by `agents/tests/test_blackboard_flow.py` (real backend process + 3 real A2A servers; inputs rebuilt from the board,
+  outputs authored on the board, hub path still works), `agents/tests/test_board_io.py`, `tests/test_blackboard_api.py`.
+- `run_config.topology` records which topology produced a run. Recovery Agent still uses the hub path (no board role).
+- Not done: live comparison hub vs blackboard (benchmark), dashboard view of the board.
+
 ## Tracing + provenance (2026-10-15) — implemented + tested (0 tokens); NOT yet run live
 - `nexus_trace.py` (stdlib only): W3C `traceparent`. `run_investigation` starts one trace per incident (`incident.trace_id`,
   `root_span_id`); every A2A call carries a `traceparent` header (`agents/common/remote_agent.py`, fresh child span per call);

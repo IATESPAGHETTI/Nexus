@@ -45,6 +45,7 @@ from critic_core import AGENT_NAME, DESCRIPTION, INSTRUCTION, build_critique  # 
 from json_extract import extract_json  # noqa: E402
 from prompt_variants import apply_variant  # noqa: E402
 from nexus_trace import TraceContextMiddleware  # noqa: E402
+from board_io import parse_board_message, run_on_board  # noqa: E402
 from nexus_guard import redact_text  # noqa: E402
 
 for _parent in Path(__file__).resolve().parents:  # a git worktree has no .env of its own
@@ -132,7 +133,12 @@ class CrewAICriticExecutor(AgentExecutor):
         await updater.submit()
         await updater.start_work()
         try:
-            critique = await asyncio.to_thread(critique_for, context.get_user_input() or "")
+            text = context.get_user_input() or ""
+            board = parse_board_message(text)
+            if board:  # blackboard topology: read the board, write the critique back, reply with an ack
+                critique = await run_on_board(lambda q: asyncio.to_thread(critique_for, q), board, AGENT_NAME)
+            else:
+                critique = await asyncio.to_thread(critique_for, text)
             await updater.complete(updater.new_agent_message([Part(root=TextPart(text=json.dumps(critique)))]))
         except Exception as exc:  # noqa: BLE001 -- surface as a failed A2A task, never a hung one
             await updater.failed(updater.new_agent_message([Part(root=TextPart(text=f"{type(exc).__name__}: {str(exc)[:200]}"))]))

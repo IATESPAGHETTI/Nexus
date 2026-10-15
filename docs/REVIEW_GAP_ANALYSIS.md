@@ -6,7 +6,7 @@ contains, using the root `CLAUDE.md` vocabulary.
 
 | # | Requirement | Status | Short reason |
 |---|---|---|---|
-| 1 | Shared state, compare messaging architectures, **Blackboard** | partially implemented | Hub-and-spoke only; no blackboard; no comparison |
+| 1 | Shared state, compare messaging architectures, **Blackboard** | blackboard implemented + tested (2026-10-15); measured comparison pending | `NEXUS_TOPOLOGY=hub\|blackboard`; comparison needs the benchmark |
 | 2 | MCP tools (>= 2) | implemented + tested | 7 MCP tools (git diff disabled by default) |
 | 3 | Pydantic structured output | implemented + tested (2026-10-15) | `nexus_models.py`; builders validate; final `IncidentReport` JSON+Markdown |
 | 4 | Agentic design patterns, compared | partially implemented | Several patterns present, none compared |

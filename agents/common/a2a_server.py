@@ -29,7 +29,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 from nexus_trace import TraceContextMiddleware  # noqa: E402
+from board_io import parse_board_message, run_on_board  # noqa: E402
 
 
 class DiagnosticAgentExecutor(AgentExecutor):
@@ -49,8 +51,14 @@ class DiagnosticAgentExecutor(AgentExecutor):
         updater = TaskUpdater(event_queue, context.task_id, context.context_id)
         await updater.start_work()
 
-        question = context.get_user_input() or self.diagnostic_agent.default_question
-        finding = await self.diagnostic_agent.investigate(question)
+        text = context.get_user_input() or ""
+        board = parse_board_message(text)
+        if board:
+            # Blackboard topology: read the shared board, write the result back, reply with a small ack.
+            finding = await run_on_board(self.diagnostic_agent.investigate, board, self.diagnostic_agent.agent_name)
+        else:
+            question = text or self.diagnostic_agent.default_question
+            finding = await self.diagnostic_agent.investigate(question)
 
         message = updater.new_agent_message([Part(text=json.dumps(finding))])
         await updater.complete(message)

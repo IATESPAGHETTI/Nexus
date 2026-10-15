@@ -44,6 +44,7 @@ from budget import IncidentBudget  # noqa: E402
 from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E402
 import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
+import blackboard  # noqa: E402
 from nexus_guard import screen_user_text  # noqa: E402
 import nexus_trace  # noqa: E402
 from nexus_models import build_incident_report  # noqa: E402
@@ -151,7 +152,10 @@ async def _dispatch_diagnostic_agents(
     for name in agent_names:
         event_bridge.emit_event(incident_id, "AGENT_STARTED", source="incident_manager", target=name)
 
-    result = await investigate_incident(question, agent_names=agent_names)
+    if blackboard.enabled():
+        result = await blackboard.board_investigate(incident_id, question, agent_names, DIAGNOSTIC_AGENTS)
+    else:
+        result = await investigate_incident(question, agent_names=agent_names)
 
     for name in result["agents_responded"]:
         finding = result["findings"][name]
@@ -218,7 +222,10 @@ async def _dispatch_diagnostic_agents(
 async def _call_evidence_agent(
     incident_id: str, findings_by_agent: dict, budget: IncidentBudget, previous: list[dict] | None = None
 ) -> list[dict]:
-    call = await call_remote_agent(EVIDENCE_AGENT_NAME, EVIDENCE_AGENT_DESCRIPTION, json.dumps(findings_by_agent))
+    if blackboard.enabled():
+        call = await blackboard.board_synthesize(incident_id, EVIDENCE_AGENT_NAME, EVIDENCE_AGENT_DESCRIPTION)
+    else:
+        call = await call_remote_agent(EVIDENCE_AGENT_NAME, EVIDENCE_AGENT_DESCRIPTION, json.dumps(findings_by_agent))
     event_bridge.emit_event(
         incident_id,
         "A2A_MESSAGE_SENT",
@@ -242,7 +249,10 @@ async def _call_evidence_agent(
 
 async def _call_critic(incident_id: str, hypothesis: dict, evidence_pool: list[dict], budget: IncidentBudget) -> dict:
     payload = {"hypothesis": hypothesis, "evidence_pool": evidence_pool}
-    call = await call_remote_agent(CRITIC_AGENT_NAME, CRITIC_AGENT_DESCRIPTION, json.dumps(payload))
+    if blackboard.enabled():
+        call = await blackboard.board_review(incident_id, CRITIC_AGENT_NAME, CRITIC_AGENT_DESCRIPTION, hypothesis)
+    else:
+        call = await call_remote_agent(CRITIC_AGENT_NAME, CRITIC_AGENT_DESCRIPTION, json.dumps(payload))
     event_bridge.emit_event(
         incident_id,
         "A2A_MESSAGE_SENT",
@@ -333,6 +343,7 @@ async def run_investigation(
             "prompt_variant": os.environ.get("NEXUS_PROMPT_VARIANT", "default"),
             "guardrails": os.environ.get("NEXUS_GUARDRAILS", "1") != "0",
             "critic_framework": os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk"),
+            "topology": "blackboard" if blackboard.enabled() else "hub",
             "triage": use_triage,
             "skip_critic": skip_critic,
             "llm": os.environ.get("NEXUS_LLM_PROVIDER", "deepseek"),
