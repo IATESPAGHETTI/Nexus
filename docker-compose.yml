@@ -89,6 +89,7 @@ services:
       PRODUCTION_BASE_URL: http://production:8001
       NEXUS_INTERNAL_TOKEN: ${NEXUS_INTERNAL_TOKEN:-}
       NEXUS_TOPOLOGY: ${NEXUS_TOPOLOGY:-hub}
+      NEXUS_ALLOW_INTERNAL_HTTP: "1"   # services reach each other by name on the private compose network (see agents/common/remote_agent.py)
       NEXUS_PROMPT_VARIANT: ${NEXUS_PROMPT_VARIANT:-default}
       NEXUS_GUARDRAILS: ${NEXUS_GUARDRAILS:-1}
       NEXUS_CRITIC_FRAMEWORK: ${NEXUS_CRITIC_FRAMEWORK:-adk}
