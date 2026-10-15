@@ -32,6 +32,15 @@ if _MCP_PYTHON_OVERRIDE:
 
 MCP_CONNECT_TIMEOUT_SECONDS = 15.0
 
+# The MCP SDK starts the tool server with a MINIMAL environment (PATH, HOME, ...), not ours. Settings the tool
+# server needs must be passed explicitly or it silently falls back to its local defaults (e.g. 127.0.0.1:8001,
+# which is wrong inside a container).
+_PASSTHROUGH_ENV = ("PRODUCTION_BASE_URL", "NEXUS_ENABLE_GIT_DIFF")
+
+
+def mcp_server_env() -> dict[str, str]:
+    return {k: os.environ[k] for k in _PASSTHROUGH_ENV if os.environ.get(k)}
+
 
 def mcp_server_connection_params() -> StdioConnectionParams:
     if not _MCP_PYTHON_OVERRIDE and not MCP_SERVER_PYTHON.exists():
@@ -45,6 +54,7 @@ def mcp_server_connection_params() -> StdioConnectionParams:
             command=str(MCP_SERVER_PYTHON),
             args=[str(MCP_SERVER_SCRIPT)],
             cwd=str(MCP_DIR),
+            env=mcp_server_env(),
         ),
         timeout=MCP_CONNECT_TIMEOUT_SECONDS,
     )

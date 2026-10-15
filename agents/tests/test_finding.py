@@ -83,3 +83,13 @@ def test_build_finding_schema_shape():
     assert required_keys.issubset(finding.keys())
     assert finding["source"] == "database_agent"
     assert set(finding["window"].keys()) == {"start", "end"}
+
+
+def test_mcp_server_receives_the_settings_it_needs(monkeypatch):
+    """The MCP SDK gives the tool server a minimal environment, so required settings are passed explicitly."""
+    import mcp_connection
+    monkeypatch.setenv("PRODUCTION_BASE_URL", "http://production:8001")
+    monkeypatch.delenv("NEXUS_ENABLE_GIT_DIFF", raising=False)
+    assert mcp_connection.mcp_server_env() == {"PRODUCTION_BASE_URL": "http://production:8001"}
+    params = mcp_connection.mcp_server_connection_params().server_params
+    assert params.env == {"PRODUCTION_BASE_URL": "http://production:8001"}

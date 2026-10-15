@@ -6,6 +6,21 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Platform mode + cloud deployment files (2026-10-16) — implemented + unit-tested; images NOT built or run (Docker engine was off)
+- Full stack in `docker-compose.yml` (production, backend, orchestrator, 7 agent services, dashboard; optional CrewAI critic via
+  `--profile crewai`); Dockerfiles: `agents/` (one image, 7 commands), `orchestrator/`, `crewai_critic/`, `dashboard/` (nginx).
+  `docker compose config` passes (also with the profile). Guide: `deploy/DEPLOY.md` (local compose, single-VM cloud recipe,
+  security checklist). CI gained jobs for the new suites and `compose config`.
+- Code changes that make containers possible, all default-off (local behaviour unchanged): `orchestrator/service.py` (HTTP trigger,
+  one investigation at a time, optional `X-Internal-Token`); backend `demo.py` platform mode when `NEXUS_ORCHESTRATOR_URL` is set
+  (HTTP instead of subprocess, no process start/stop); agent addresses from `NEXUS_AGENT_URL_<NAME>`; `NEXUS_BIND_HOST` /
+  `NEXUS_ADVERTISE_HOST` for services; `NEXUS_MCP_PYTHON` for the MCP stdio server. nginx proxy allows only `GET /orders[/id]` of
+  the shop, adds the approver token server-side, optional basic auth (`DASHBOARD_PASSWORD`).
+- Bug found while auditing the container wiring: the MCP SDK starts the tool server with a minimal environment, so
+  `PRODUCTION_BASE_URL` never reached it (it silently used 127.0.0.1:8001). Now passed explicitly (`mcp_server_env`, tested).
+- NOT done: building/running the images, `docker compose up` health checks, an actual cloud deployment (needs the owner's cloud
+  account and a decision on provider/TLS). Do not claim Docker or cloud works until those are run.
+
 ## Blackboard topology (2026-10-15) — implemented + tested (0 tokens, real backend + real A2A, fake reasoning); NOT yet run live
 - `NEXUS_TOPOLOGY=blackboard` (default `hub`). The shared board is the incident record's `blackboard` list
   (`backend/app/incident_store.py::append_board_entry`, `POST/GET /incidents/{id}/blackboard`, six typed entries, atomic,
