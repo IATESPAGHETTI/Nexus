@@ -21,7 +21,7 @@ ROOT_CAUSE_KEYWORDS = {
     "dependency_failure": ("dependency", "downstream", "upstream", "payment", "timeout", "unreachable"),
     "resource_exhaustion": ("resource", "memory", "cpu", "exhaust", "capacity", "out of memory"),
     "bad_deployment": ("deploy", "release", "rollout", "rollback", "new version", "code change"),
-    "db_slowdown": ("database", "db ", "query", "queries", "sql", "slow", "latency"),
+    "db_slowdown": ("database", "db ", "query", "queries", "sql", "slow"),  # "latency" is too generic: every cause mentions it
 }
 # More specific causes win ties: a configuration fault is usually described with database words ("DB_POOL_SIZE"),
 # but a slow database is never described with configuration words except to rule them out.
@@ -29,7 +29,7 @@ _PRIORITY = ("config_error", "dependency_failure", "resource_exhaustion", "bad_d
 
 # Clauses that mention a cause only to exclude it ("no deployment", "not a config issue", "rather than a timeout").
 _NEGATED = re.compile(
-    r"\b(no|not|without|neither|nor|rather than|instead of|ruled out|rules out|unrelated to|excluding|isn't|wasn't)\b[^.;:]{0,60}",
+    r"\b(no|not|without|neither|nor|rather than|instead of|ruled out|rules out|ruling out|rule out|excludes|excluded|unrelated to|excluding|isn't|wasn't)\b[^.;:]{0,60}",
     re.IGNORECASE,
 )
 

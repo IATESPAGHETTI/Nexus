@@ -18,5 +18,9 @@
  {
   "truth": "config_error",
   "statement": "The 500 errors on /orders and /orders/1 are caused by an application configuration fault: DB_POOL_SIZE is read as 0, so requests are rejected during config/startup validation before any DB access. This produces fast (sub-1.2ms) ConfigError failures rather than timeouts, yielding ~71% error rate across both endpoints."
+ },
+ {
+  "truth": "unknown",
+  "statement": "The failures are isolated to the order-serving path and occur without latency or timeout involvement: both order endpoints error ~71-72% with sub-millisecond latency, while GET /logs is healthy, ruling out load, saturation, or downstream DB slowness as the cause."
  }
 ]

@@ -136,6 +136,17 @@ async def run_one(arm: matrix.Arm, scenario_id: str, repeat: int) -> dict:
             pass
 
 
+def rescore(record: dict) -> dict:
+    """Re-judge a stored NEXUS run with the CURRENT scorer from its stored hypothesis text, so every run in a report is
+    scored by the same code even if the scorer was improved while the matrix was running."""
+    if record.get("status") == "BASELINE" or "predicted_statement" not in record:
+        return record
+    abstained = record.get("status") == "ABSTAINED"
+    predicted = scoring.classify_statement(None if abstained else record.get("predicted_statement"))
+    updated = scoring.score_run(predicted, record["ground_truth_root_cause"], abstained=abstained)
+    return {**record, **updated}
+
+
 def load_done(path: Path) -> list[dict]:
     if not path.exists():
         return []
@@ -165,10 +176,23 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--resume", default=None, help="a matrix-*.jsonl file to continue")
     ap.add_argument("--plan", action="store_true", help="print the size/time/cost estimate and exit")
+    ap.add_argument("--report-only", default=None, help="a matrix-*.jsonl file: re-score with the current scorer and write the report, no runs")
     ap.add_argument("--max-spend-usd", type=float, default=1.0, help="stop when the ESTIMATED spend reaches this")
     ap.add_argument("--price-in", type=float, default=float(os.environ.get("NEXUS_PRICE_IN_PER_M", matrix.DEFAULT_PRICE_IN_PER_M)))
     ap.add_argument("--price-out", type=float, default=float(os.environ.get("NEXUS_PRICE_OUT_PER_M", matrix.DEFAULT_PRICE_OUT_PER_M)))
     args = ap.parse_args(argv)
+
+    if args.report_only:
+        path = Path(args.report_only)
+        runs = [rescore(r) for r in load_done(path)]
+        arms_present = [a for a in matrix.ARMS if any(r["arm"] == a.name for r in runs)]
+        ids = sorted({r["scenario_id"] for r in runs}, key=lambda s: (s.startswith("CTRL"), s))
+        reps = 1 + max(r["repeat"] for r in runs)
+        report = build_report(runs, arms_present, ids, reps, None, args.price_in, args.price_out)
+        path.with_suffix(".json").write_text(json.dumps(report, indent=2, default=str), encoding="utf-8")
+        path.with_suffix(".md").write_text(matrix.render_markdown(report), encoding="utf-8")
+        print(matrix.render_markdown(report))
+        return 0
 
     arms = [matrix.ARMS_BY_NAME[n] for n in args.arms.split(",") if n]
     scenario_ids = [s for s in args.scenarios.split(",") if s]

@@ -106,7 +106,7 @@ def test_classifier_labels_real_pilot_statements_correctly():
     labelled the configuration statements 'db_slowdown' because they mention DB_POOL_SIZE."""
     import json
     fixtures = json.loads((Path(__file__).parent / "real_statements.json").read_text(encoding="utf-8"))
-    assert len(fixtures) >= 5
+    assert len(fixtures) >= 6
     for f in fixtures:
         assert scoring.classify_statement(f["statement"]) == f["truth"], f["statement"][:120]
 
@@ -117,3 +117,16 @@ def test_classifier_ignores_causes_that_are_only_ruled_out():
     assert scoring.classify_statement("payment-service timeouts on order lookups") == "dependency_failure"
     assert scoring.classify_statement("The service is out of memory") == "resource_exhaustion"
     assert scoring.classify_statement("nothing recognisable here") == "unknown" and scoring.classify_statement(None) == "unknown"
+
+
+def test_rescore_uses_the_current_scorer_on_stored_text():
+    import run_matrix
+    rec = {"arm": "a", "scenario_id": "s", "status": "DIAGNOSED", "ground_truth_root_cause": "config_error",
+           "predicted_statement": "A misconfiguration of DB_POOL_SIZE causes the errors", "predicted_root_cause": "db_slowdown",
+           "correct": False, "false_diagnosis": True, "abstained": False}
+    out = run_matrix.rescore(rec)
+    assert out["predicted_root_cause"] == "config_error" and out["correct"] is True
+    abst = {**rec, "status": "ABSTAINED"}
+    assert run_matrix.rescore(abst)["predicted_root_cause"] == "unknown"
+    base = {"arm": "b", "status": "BASELINE", "correct": True}
+    assert run_matrix.rescore(base) == base
