@@ -45,6 +45,7 @@ from incident_manager import DIAGNOSTIC_AGENTS, investigate_incident  # noqa: E4
 import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 from nexus_guard import screen_user_text  # noqa: E402
+import nexus_trace  # noqa: E402
 from nexus_models import build_incident_report  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
@@ -64,8 +65,12 @@ def attach_report(incident_id: str) -> dict:
     try:
         incident = event_bridge.get_incident(incident_id)
         report = build_incident_report(incident)
+        events = event_bridge.get_events(incident_id)
         event_bridge.update_state(
-            incident_id, report={**report.model_dump(), "markdown": report.to_markdown()}
+            incident_id,
+            report={**report.model_dump(), "markdown": report.to_markdown()},
+            trace=nexus_trace.build_trace(incident, events),
+            lineage=nexus_trace.build_lineage(incident, events),
         )
         return event_bridge.get_incident(incident_id)
     except Exception as exc:  # noqa: BLE001
@@ -300,6 +305,8 @@ async def run_investigation(
     budget = budget or IncidentBudget.from_env()
 
     incident_id = incident_id or event_bridge.create_incident(incident_description)
+    trace = nexus_trace.start_trace()  # one W3C trace id for this whole investigation
+    event_bridge.update_state(incident_id, trace_id=trace.trace_id, root_span_id=trace.span_id)
     event_bridge.emit_event(
         incident_id, "INCIDENT_CREATED", source="incident_manager", payload={"description": incident_description}
     )

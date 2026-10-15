@@ -20,8 +20,10 @@ INCIDENT = {
 def test_attach_report_saves_json_and_markdown(monkeypatch):
     saved = {}
     monkeypatch.setattr(event_bridge, "get_incident", lambda i: INCIDENT)
+    monkeypatch.setattr(event_bridge, "get_events", lambda i: [])
     monkeypatch.setattr(event_bridge, "update_state", lambda i, **f: saved.update(f))
     investigation.attach_report("INC-9")
+    assert "trace" in saved and "lineage" in saved
     assert saved["report"]["root_cause"] == "s"
     assert saved["report"]["markdown"].startswith("# Incident report INC-9")
 
@@ -30,6 +32,7 @@ def test_attach_report_never_raises_when_saving_fails(monkeypatch):
     def boom(i, **f):
         raise RuntimeError("backend rejected state")
     monkeypatch.setattr(event_bridge, "get_incident", lambda i: INCIDENT)
+    monkeypatch.setattr(event_bridge, "get_events", lambda i: [])
     monkeypatch.setattr(event_bridge, "update_state", boom)
     assert investigation.attach_report("INC-9") == INCIDENT  # outcome unchanged
 

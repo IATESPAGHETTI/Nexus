@@ -44,6 +44,7 @@ from callbacks import AgentMonitor  # noqa: E402
 from critic_core import AGENT_NAME, DESCRIPTION, INSTRUCTION, build_critique  # noqa: E402
 from json_extract import extract_json  # noqa: E402
 from prompt_variants import apply_variant  # noqa: E402
+from nexus_trace import TraceContextMiddleware  # noqa: E402
 from nexus_guard import redact_text  # noqa: E402
 
 for _parent in Path(__file__).resolve().parents:  # a git worktree has no .env of its own
@@ -153,7 +154,9 @@ def build_app():
                            description="Challenge a hypothesis against an evidence pool", tags=["critic", "crewai"])],
     )
     handler = DefaultRequestHandler(agent_executor=CrewAICriticExecutor(), task_store=InMemoryTaskStore())
-    return A2AStarletteApplication(agent_card=card, http_handler=handler).build()
+    built = A2AStarletteApplication(agent_card=card, http_handler=handler).build()
+    built.add_middleware(TraceContextMiddleware)
+    return built
 
 
 app = build_app()

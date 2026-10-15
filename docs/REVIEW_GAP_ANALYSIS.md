@@ -14,7 +14,7 @@ contains, using the root `CLAUDE.md` vocabulary.
 | 6 | A2A, ADK <-> CrewAI interop | implemented + tested (Critic) | ADK client -> CrewAI Critic over A2A, verified live 2026-10-15 |
 | 7 | Both CrewAI and ADK | implemented + tested (Critic) | `crewai_critic/`; one agent only, others ADK |
 | 8 | Guardrails, input/tool-return validation, prompt variance | implemented + tested (2026-10-15) | Input + tool-output guards, red-team tests, 5 prompt variants; heuristics only |
-| 9 | Observability: tracing, auditability, provenance | partially implemented | Event store + audit logs; no distributed trace |
+| 9 | Observability: tracing, auditability, provenance | implemented + tested (2026-10-15) | W3C trace id across A2A, span tree, lineage; no external collector, no UI panel yet |
 | 10 | End-to-end evaluation, cost/time, prompt variance | partially implemented | 3-arm harness; no repeats, no prompt variants, no dollar cost |
 | 11 | Cloud deployment | **not implemented** | Compose runs 2 of ~10 processes; never built or run |
 

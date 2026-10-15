@@ -54,3 +54,18 @@ def test_adk_client_gets_a_crewai_critique_over_a2a(service, monkeypatch):
     assert out["response"]["framework"] == "crewai"
     assert out["response"]["hypothesis_id"] == "H1"
     assert out["response"]["verdict"] == "INSUFFICIENT_EVIDENCE"
+
+
+def test_trace_id_travels_over_a2a_to_the_crewai_agent(service, monkeypatch):
+    import ports
+    import nexus_trace
+    monkeypatch.setitem(ports.A2A_PORTS, "root_cause_critic", PORT)
+    from remote_call import call_remote_agent
+    ctx = nexus_trace.start_trace()
+    try:
+        out = asyncio.run(call_remote_agent("root_cause_critic", "crewai critic", json.dumps({"hypothesis": {}, "evidence_pool": []})))
+    finally:
+        nexus_trace.set_current(None)
+    mon = out["response"]["monitoring"]
+    assert mon["trace_id"] == ctx.trace_id          # the id the orchestrator generated arrived in the CrewAI process
+    assert mon["parent_span_id"] and mon["parent_span_id"] != ctx.span_id  # a child span of the root, one per call

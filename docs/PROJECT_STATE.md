@@ -6,6 +6,18 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Tracing + provenance (2026-10-15) — implemented + tested (0 tokens); NOT yet run live
+- `nexus_trace.py` (stdlib only): W3C `traceparent`. `run_investigation` starts one trace per incident (`incident.trace_id`,
+  `root_span_id`); every A2A call carries a `traceparent` header (`agents/common/remote_agent.py`, fresh child span per call);
+  every agent service (ADK `a2a_server.py` and the CrewAI service) runs `TraceContextMiddleware`; `AgentMonitor` stamps the
+  received trace_id on its records. Every orchestrator event payload also carries `trace_id`.
+- Proven over the wire: `agents/tests/test_trace_propagation.py` (ADK service) and `orchestrator/tests/test_crewai_critic_a2a.py`
+  (CrewAI service) assert the agent saw the orchestrator's trace_id with a child parent span.
+- Stored at the end of each investigation: `incident.trace` (span tree: incident -> a2a call -> agent -> model/tool calls;
+  inner starts are reconstructed from durations and flagged `start_estimated`) and `incident.lineage` (conclusion -> evidence
+  with tool/arguments/agent/finding -> critique -> plan -> approval/execution; never invents ids). Not an OTLP export.
+- Not done: dashboard panel for trace/lineage; export to an external collector.
+
 ## Security guardrails + prompt variants (2026-10-15) — implemented + tested (0 tokens); NOT yet run live
 - `nexus_guard.py`: `screen_user_text` (abuse, prompt injection, empty/too long), `guard_tool_result` (type check, size bound,
   redaction of instruction-like text, flags), `redact_text`. `agents/common/guard_callbacks.py` applies them as ADK callbacks

@@ -25,7 +25,13 @@ from __future__ import annotations
 import os
 from typing import Any
 
+import sys
+from pathlib import Path
+
 import httpx
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import nexus_trace  # noqa: E402
 
 BACKEND_URL = os.environ.get("NEXUS_BACKEND_URL", "http://127.0.0.1:8000")
 _TIMEOUT = 10.0
@@ -47,12 +53,16 @@ def emit_event(
     status: str | None = None,
     payload: dict[str, Any] | None = None,
 ) -> dict:
+    payload = dict(payload or {})
+    ctx = nexus_trace.current()
+    if ctx is not None:
+        payload.setdefault("trace_id", ctx.trace_id)
     body = {
         "event_type": event_type,
         "source": source,
         "target": target,
         "status": status,
-        "payload": payload or {},
+        "payload": payload,
     }
     response = httpx.post(
         f"{BACKEND_URL}/incidents/{incident_id}/events", json=body, timeout=_TIMEOUT

@@ -21,7 +21,13 @@ from __future__ import annotations
 import json
 import sys
 import time
+from pathlib import Path
 from typing import Any
+
+_ROOT = Path(__file__).resolve().parents[2]
+if str(_ROOT) not in sys.path:
+    sys.path.insert(0, str(_ROOT))
+import nexus_trace  # noqa: E402
 
 MAX_RECORDS = 200  # a runaway agent must not grow the trace without bound
 _MAX_MSG = 200
@@ -52,12 +58,17 @@ class AgentMonitor:
         self._tool_started: dict[str, float] = {}
         self._run_started = time.perf_counter()
         self.guard = None  # set by build_adk_agent when guardrails are on
+        incoming = nexus_trace.current()  # the orchestrator's traceparent, read by TraceContextMiddleware
+        self.trace_id = incoming.trace_id if incoming else None
+        self.parent_span_id = incoming.span_id if incoming else None
+        self.span_id = nexus_trace.new_span_id()
 
     # ------------------------------------------------------------ plumbing
     def _add(self, kind: str, **fields: Any) -> None:
         if len(self.records) >= MAX_RECORDS:
             return
-        record = {"seq": len(self.records) + 1, "kind": kind, "agent": self.agent_name, **fields}
+        record = {"seq": len(self.records) + 1, "kind": kind, "agent": self.agent_name,
+                  "span_id": nexus_trace.new_span_id(), **fields}
         self.records.append(record)
         if self.echo:
             print("[nexus-monitor] " + json.dumps(record, default=str), file=sys.stderr, flush=True)
@@ -136,6 +147,9 @@ class AgentMonitor:
         tool_done = [r for r in self.records if r["kind"] == "tool_call_finished"]
         return {
             "agent": self.agent_name,
+            "trace_id": self.trace_id,
+            "span_id": self.span_id,
+            "parent_span_id": self.parent_span_id,
             "prompt_variant": _variant(),
             "model_calls": sum(1 for r in self.records if r["kind"] == "model_call_finished"),
             "tool_calls": len(tool_done),
