@@ -13,6 +13,8 @@ version of this file recommended Hugging Face Spaces as a free option. Hugging F
 paid plan (PRO) to create, so it is NOT free. The image is untested so far and only useful on a host that allows a single container
 and gives it at least ~4 GB RAM.
 
+**Using Azure for Students (no credit card)? Follow `deploy/AZURE.md`.**
+
 ## 1. Run it locally first
 
 ```bash

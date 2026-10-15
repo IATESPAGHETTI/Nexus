@@ -156,7 +156,7 @@ services:
     build:
       context: .
       dockerfile: dashboard/Dockerfile
-    ports: ["${DASHBOARD_PORT:-8080}:80"]
+    ports: ["${DASHBOARD_BIND:-0.0.0.0}:${DASHBOARD_PORT:-8080}:80"]
     restart: unless-stopped
     environment:
       DASHBOARD_USER: ${DASHBOARD_USER:-nexus}
