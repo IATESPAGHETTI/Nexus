@@ -36,7 +36,6 @@ COPY --chown=user production ./production
 COPY --chown=user --from=web /web/dist /app/web
 COPY --chown=user deploy/space /app/deploy/space
 RUN sed -i 's/\r$//' /app/deploy/space/entrypoint.sh /app/deploy/space/nginx.conf /app/deploy/space/supervisord.conf && chmod +x /app/deploy/space/entrypoint.sh && mkdir -p /app/run && chown -R user /app/run
-$//" /app/deploy/space/entrypoint.sh /app/deploy/space/nginx.conf /app/deploy/space/supervisord.conf && chmod +x /app/deploy/space/entrypoint.sh && mkdir -p /app/run && chown -R user /app/run
 
 USER user
 ENV NEXUS_MCP_PYTHON=/opt/venv-agents/bin/python \
