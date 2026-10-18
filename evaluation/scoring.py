@@ -55,12 +55,13 @@ def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained
     made", which is correctness-neutral (not counted as a false diagnosis)
     but also not counted as a correct one."""
     made_a_diagnosis = predicted_root_cause != "unknown" and not abstained
+    acceptable = set(ground_truth_root_cause.split("|"))       # "a|b" = two simultaneous faults, either diagnosis is accepted
     if ground_truth_root_cause == "none":  # healthy control: the only correct answer is "no cause found"
         correct = not made_a_diagnosis
         false_diagnosis = made_a_diagnosis
     else:
-        correct = made_a_diagnosis and predicted_root_cause == ground_truth_root_cause
-        false_diagnosis = made_a_diagnosis and predicted_root_cause != ground_truth_root_cause
+        correct = made_a_diagnosis and predicted_root_cause in acceptable
+        false_diagnosis = made_a_diagnosis and predicted_root_cause not in acceptable
     return {
         "predicted_root_cause": predicted_root_cause,
         "ground_truth_root_cause": ground_truth_root_cause,

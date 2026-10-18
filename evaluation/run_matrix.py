@@ -71,6 +71,18 @@ def deepseek_balance() -> float | None:
         return None
 
 
+def agent_error_count(incident_id: str | None) -> int:
+    """How many model/tool errors the agents reported during this run (from their AGENT_MONITOR events). A run with errors
+    (typically provider rate limits) must not be scored as if the system had reasoned its way to an abstention."""
+    if not incident_id:
+        return 0
+    try:
+        events = json.loads(_http("GET", f"{BACKEND}/incidents/{incident_id}/events"))["events"]
+    except Exception:  # noqa: BLE001
+        return 0
+    return sum(int((e.get("payload") or {}).get("errors", 0) or 0) for e in events if e.get("event_type") == "AGENT_MONITOR")
+
+
 def leading_statement(incident: dict) -> str | None:
     hyps = [h for h in (incident.get("hypotheses") or []) if h.get("status") in ("SUPPORTED", "PROPOSED", "UNDER_REVIEW", "NEEDS_EVIDENCE")]
     return max(hyps, key=lambda h: h.get("confidence", 0.0)).get("statement") if hyps else None
@@ -98,7 +110,7 @@ async def run_one(arm: matrix.Arm, scenario_id: str, repeat: int) -> dict:
     reset_shop()
     customer_traffic(10)
     if scenario["fault_type"]:
-        injector.inject(scenario_id)
+        injector.inject(scenario_id)   # may inject several faults for the held-out two-fault scenarios
     customer_traffic(25)
     base = {"arm": arm.name, "scenario_id": scenario_id, "repeat": repeat, "ground_truth_root_cause": truth}
     started = time.perf_counter()
@@ -127,6 +139,7 @@ async def run_one(arm: matrix.Arm, scenario_id: str, repeat: int) -> dict:
             "incident_id": incident.get("incident_id"), "trace_id": incident.get("trace_id"),
             "status": incident.get("status"), "loops_used": (incident.get("decision") or {}).get("loops_used"),
             "predicted_statement": statement, "run_config": incident.get("run_config"),
+            "agent_errors": agent_error_count(incident.get("incident_id")),
         })
         return {**base, **rec}
     finally:
@@ -172,9 +185,13 @@ def build_report(runs: list[dict], arms: list[matrix.Arm], scenario_ids: list[st
 def main(argv: list[str]) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--arms", default=",".join(a.name for a in matrix.ARMS))
-    ap.add_argument("--scenarios", default=",".join([*(s["scenario_id"] for s in scenarios.SCENARIOS), "CTRL-healthy"]))
+    ap.add_argument("--set", choices=["core", "holdout", "all"], default="core",
+                    help="core = the 5 tuned faults + healthy control; holdout = reworded + two-fault scenarios (run with prompts/scorer FROZEN)")
+    ap.add_argument("--scenarios", default=None, help="explicit comma-separated scenario ids (overrides --set)")
     ap.add_argument("--repeats", type=int, default=2)
     ap.add_argument("--resume", default=None, help="a matrix-*.jsonl file to continue")
+    ap.add_argument("--retries", type=int, default=2, help="re-run a run whose agents reported errors (e.g. provider rate limits)")
+    ap.add_argument("--retry-wait", type=int, default=65, help="seconds to wait before a retry (free tiers limit requests per minute)")
     ap.add_argument("--plan", action="store_true", help="print the size/time/cost estimate and exit")
     ap.add_argument("--report-only", default=None, help="a matrix-*.jsonl file: re-score with the current scorer and write the report, no runs")
     ap.add_argument("--max-spend-usd", type=float, default=1.0, help="stop when the ESTIMATED spend reaches this")
@@ -195,7 +212,10 @@ def main(argv: list[str]) -> int:
         return 0
 
     arms = [matrix.ARMS_BY_NAME[n] for n in args.arms.split(",") if n]
-    scenario_ids = [s for s in args.scenarios.split(",") if s]
+    core = [*(s["scenario_id"] for s in scenarios.SCENARIOS), "CTRL-healthy"]
+    holdout = [*(s["scenario_id"] for s in scenarios.HOLDOUT_SCENARIOS), "HO-healthy-control"]
+    chosen = {"core": core, "holdout": holdout, "all": core + holdout}[args.set]
+    scenario_ids = [s for s in (args.scenarios.split(",") if args.scenarios else chosen) if s]
     total_runs = len(arms) * len(scenario_ids) * args.repeats
     nexus_runs = sum(1 for a in arms if a.kind == "nexus") * len(scenario_ids) * args.repeats
     est_cost = nexus_runs * matrix.estimate_cost_usd(int(TOKENS_PER_NEXUS_RUN * 0.92), int(TOKENS_PER_NEXUS_RUN * 0.08), args.price_in, args.price_out)
@@ -232,13 +252,21 @@ def main(argv: list[str]) -> int:
                     print(f"[stop] estimated spend ${spent:.3f} reached --max-spend-usd; resume later with --resume {out}")
                     raise SystemExit(0)
                 rec = asyncio.run(run_one(arm, sid, rep))
+                attempts = 1
+                while rec.get("agent_errors", 0) > 0 and attempts <= args.retries:   # provider errors: pause, then run again
+                    print(f"   run had {rec['agent_errors']} agent error(s) (rate limit?); waiting {args.retry_wait}s, retry {attempts}/{args.retries}", flush=True)
+                    time.sleep(args.retry_wait)
+                    rec = asyncio.run(run_one(arm, sid, rep))
+                    attempts += 1
+                rec["attempts"] = attempts
+                rec["invalid"] = rec.get("agent_errors", 0) > 0     # still failing after the retries: excluded from accuracy, counted separately
                 t = matrix.run_tokens(rec)
                 spent += matrix.estimate_cost_usd(t["prompt"], t["completion"], args.price_in, args.price_out)
                 runs.append(rec)
                 with out.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(rec, default=str) + "\n")
                 print(f"[{len(runs)}] {arm.name:20s} {sid:24s} #{rep} -> {rec['predicted_root_cause']:20s} "
-                      f"{'OK ' if rec['correct'] else 'BAD'} {rec['latency_seconds']}s {t['total']} tok (est spend ${spent:.3f})", flush=True)
+                      f"{'INVALID' if rec.get('invalid') else ('OK ' if rec['correct'] else 'BAD')} {rec['latency_seconds']}s {t['total']} tok (est spend ${spent:.3f})", flush=True)
     finally:
         stack.stop()
 

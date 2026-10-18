@@ -88,7 +88,7 @@ def test_markdown_report_prints_numbers_and_every_caveat():
               "arm_definitions": {"hub_default": {"description": "d", "compares": "reference"}}, "runs": runs,
               "caveats": matrix.STANDARD_CAVEATS}
     md = matrix.render_markdown(report)
-    assert "| hub_default | 1 | 100% |" in md and "ESTIMATE" in md and "1/1" in md
+    assert "| hub_default | 1 (0) | 100% |" in md and "ESTIMATE" in md and "1/1" in md
     assert all(c in md for c in matrix.STANDARD_CAVEATS)
 
 
@@ -130,3 +130,85 @@ def test_rescore_uses_the_current_scorer_on_stored_text():
     assert run_matrix.rescore(abst)["predicted_root_cause"] == "unknown"
     base = {"arm": "b", "status": "BASELINE", "correct": True}
     assert run_matrix.rescore(base) == base
+
+
+# ------------------------------------------------------------------ held-out scenarios
+def test_holdout_scenarios_are_new_valid_and_blind():
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "production"))
+    import state as production_state
+    core_symptoms = {s["blind_symptom"] for s in scenarios.SCENARIOS} | {s["blind_symptom"] for s in scenarios.CONTROL_SCENARIOS}
+    leaks = ("deployment", "deploy ", "config", "dependency", "payment", "fault", "inject", "pool", "memory", "database", "db ", "query")
+    for s in [*scenarios.HOLDOUT_SCENARIOS, *scenarios.HOLDOUT_CONTROLS]:
+        assert set(s["fault_types"]) <= set(production_state.FAULT_TYPES), s["scenario_id"]
+        assert s["blind_symptom"] not in core_symptoms, "held-out wording must differ from the tuned wording"
+        assert not any(w in s["blind_symptom"].lower() for w in leaks), (s["scenario_id"], s["blind_symptom"])
+        truth = s["ground_truth_root_cause"].split("|")
+        assert all(t in production_state.FAULT_TYPES or t == "none" for t in truth)
+        if s["fault_types"]:
+            assert set(truth) == set(s["fault_types"]), "every injected fault is an acceptable diagnosis"
+    assert len(scenarios.HOLDOUT_SCENARIOS) == 8 and sum(1 for s in scenarios.HOLDOUT_SCENARIOS if len(s["fault_types"]) == 2) == 3
+    assert len(scenarios.SCENARIOS) == 5                      # the tuned set is unchanged
+
+
+def test_two_fault_truth_accepts_either_cause_and_rejects_others():
+    ok_a = scoring.score_run("db_slowdown", "db_slowdown|dependency_failure", False)
+    ok_b = scoring.score_run("dependency_failure", "db_slowdown|dependency_failure", False)
+    bad = scoring.score_run("config_error", "db_slowdown|dependency_failure", False)
+    assert ok_a["correct"] and ok_b["correct"] and not ok_a["false_diagnosis"]
+    assert not bad["correct"] and bad["false_diagnosis"]
+    assert scoring.score_run("unknown", "db_slowdown|dependency_failure", True)["correct"] is False
+
+
+def test_injector_posts_every_fault_of_a_two_fault_scenario(monkeypatch):
+    import injector
+    posted = []
+    monkeypatch.setattr(injector, "_post", lambda path, json=None: posted.append((path, json)) or {"ok": True})
+    injector.inject("HO-two-faults-db-dependency")
+    assert posted == [("/admin/fault/inject", {"fault_type": "db_slowdown"}), ("/admin/fault/inject", {"fault_type": "dependency_failure"})]
+    posted.clear()
+    injector.inject("FI-db-slowdown")
+    assert len(posted) == 1
+
+
+def test_runner_scenario_sets():
+    import run_matrix
+    core = [s["scenario_id"] for s in scenarios.SCENARIOS] + ["CTRL-healthy"]
+    assert len(core) == 6 and all(c in scenarios.SCENARIOS_BY_ID for c in core)
+    assert "HO-healthy-control" in scenarios.SCENARIOS_BY_ID
+    assert run_matrix.main(["--plan", "--set", "holdout", "--repeats", "1", "--arms", "hub_default"]) == 0
+
+
+def test_invalid_runs_are_excluded_from_accuracy_but_counted():
+    good = _rec("a", "s1", True)
+    bad = {**_rec("a", "s1", False, predicted="unknown", abstained=True), "invalid": True, "agent_errors": 3}
+    s = matrix.summarize_arm([good, bad])
+    assert s["runs"] == 1 and s["invalid_runs"] == 1 and s["accuracy"] == 1.0           # the rate-limited run does not count as an abstention
+    assert matrix.repeatability([good, bad])["consistent_fraction"] is None            # one valid repeat only
+
+
+def test_runner_retries_a_run_with_agent_errors_then_marks_it_invalid(monkeypatch):
+    import run_matrix
+    calls = []
+
+    async def fake_run_one(arm, sid, rep):
+        calls.append(1)
+        return {"arm": arm.name, "scenario_id": sid, "repeat": rep, "ground_truth_root_cause": "db_slowdown", "predicted_root_cause": "unknown",
+                "correct": False, "false_diagnosis": False, "abstained": True, "latency_seconds": 1, "agent_errors": 2, "token_cost": {}}
+
+    class NoStack:
+        def start(self, env): pass
+        def stop(self): pass
+
+    monkeypatch.setattr(run_matrix, "run_one", fake_run_one)
+    monkeypatch.setattr(run_matrix, "AgentStack", NoStack)
+    monkeypatch.setattr(run_matrix, "deepseek_balance", lambda: None)
+    monkeypatch.setattr(run_matrix.time, "sleep", lambda s: None)
+    monkeypatch.setattr(run_matrix, "RESULTS_DIR", Path(__file__).parent / "_tmp_results")
+    import json as _json
+    run_matrix.main(["--arms", "hub_default", "--scenarios", "FI-db-slowdown", "--repeats", "1", "--retries", "2", "--retry-wait", "0"])
+    assert len(calls) == 3                                            # first attempt + 2 retries
+    out = sorted((Path(__file__).parent / "_tmp_results").glob("matrix-*.jsonl"))[-1]
+    rec = _json.loads(out.read_text(encoding="utf-8").splitlines()[0])
+    assert rec["invalid"] is True and rec["attempts"] == 3
+    import shutil
+    shutil.rmtree(Path(__file__).parent / "_tmp_results")

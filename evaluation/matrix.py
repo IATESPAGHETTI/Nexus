@@ -106,6 +106,8 @@ def run_tokens(record: dict) -> dict:
 
 def summarize_arm(records: list[dict], price_in: float | None = None, price_out: float | None = None) -> dict:
     """Per-arm statistics over repeated runs. Fault runs and healthy-control runs are separated."""
+    invalid = [r for r in records if r.get("invalid")]
+    records = [r for r in records if not r.get("invalid")]     # runs whose agents kept erroring are not evidence about the system
     faults = [r for r in records if r.get("ground_truth_root_cause") != "none"]
     controls = [r for r in records if r.get("ground_truth_root_cause") == "none"]
     lat = [r.get("latency_seconds", 0.0) for r in records]
@@ -113,6 +115,7 @@ def summarize_arm(records: list[dict], price_in: float | None = None, price_out:
     costs = [estimate_cost_usd(t["prompt"], t["completion"], price_in, price_out) for t in toks]
     out = {
         "runs": len(records),
+        "invalid_runs": len(invalid),
         "fault_runs": len(faults),
         "accuracy": round(sum(1 for r in faults if r["correct"]) / len(faults), 3) if faults else None,
         "false_diagnosis_rate": round(sum(1 for r in faults if r["false_diagnosis"]) / len(faults), 3) if faults else None,
@@ -133,7 +136,7 @@ def summarize_arm(records: list[dict], price_in: float | None = None, price_out:
 def repeatability(records: list[dict]) -> dict:
     """Of the (scenario) groups run more than once, how often did all repeats give the same predicted root cause?"""
     by_scenario: dict[str, list[str]] = {}
-    for r in records:
+    for r in (x for x in records if not x.get("invalid")):
         by_scenario.setdefault(r["scenario_id"], []).append(r.get("predicted_root_cause", "unknown"))
     multi = {k: v for k, v in by_scenario.items() if len(v) > 1}
     if not multi:
@@ -159,7 +162,7 @@ def render_markdown(report: dict) -> str:
                      f"(2-decimal resolution; compare with the estimated total ${report['est_cost_usd_total']:.2f}).")
     lines += [
         "", "## Per-arm results", "",
-        "| Arm | Runs | Accuracy | False dx | Abstain | Control OK | Time s (mean±sd) | Tokens (mean±sd) | Calls | Est $/run |",
+        "| Arm | Runs (invalid) | Accuracy | False dx | Abstain | Control OK | Time s (mean±sd) | Tokens (mean±sd) | Calls | Est $/run |",
         "|---|---|---|---|---|---|---|---|---|---|",
     ]
 
@@ -168,7 +171,7 @@ def render_markdown(report: dict) -> str:
 
     for name, s in report["arms"].items():
         lines.append(
-            f"| {name} | {s['runs']} | {pct(s['accuracy'])} | {pct(s['false_diagnosis_rate'])} | {pct(s['abstention_rate'])} | "
+            f"| {name} | {s['runs']} ({s.get('invalid_runs', 0)}) | {pct(s['accuracy'])} | {pct(s['false_diagnosis_rate'])} | {pct(s['abstention_rate'])} | "
             f"{pct(s['control_correct_rate'])} | {s['latency_s_mean']}±{s['latency_s_std']} | {s['tokens_mean']}±{s['tokens_std']} | "
             f"{s['llm_calls_mean']} | {s['est_cost_usd_per_run']:.4f} |")
     lines += ["", "## Comparisons the arms answer", ""]
@@ -183,7 +186,7 @@ def render_markdown(report: dict) -> str:
     for sid in report["scenarios"]:
         cells = []
         for name in report["arms"]:
-            rs = [r for r in report["runs"] if r["arm"] == name and r["scenario_id"] == sid]
+            rs = [r for r in report["runs"] if r["arm"] == name and r["scenario_id"] == sid and not r.get("invalid")]
             cells.append(f"{sum(1 for r in rs if r['correct'])}/{len(rs)}" if rs else "-")
         lines.append(f"| {sid} | " + " | ".join(cells) + " |")
     lines += ["", "## Caveats", ""] + [f"- {c}" for c in report["caveats"]]
@@ -197,4 +200,5 @@ STANDARD_CAVEATS = [
     "Triage chooses which specialists are called from the symptom text, so arms call different numbers of agents.",
     "Recovery calls are excluded from every arm (trigger_recovery=False), so token totals cover diagnosis only.",
     "Latency includes provider rate-limit retries and shared-machine noise.",
+    "Runs whose agents reported errors (for example provider rate limits) were retried; runs still failing are listed as invalid and excluded from accuracy.",
 ]

@@ -6,6 +6,15 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Held-out scenarios + rate-limit-aware runner (2026-10-18) — implemented + tested; NOT yet run
+- `fault_injection/scenarios.py::HOLDOUT_SCENARIOS` (8) + `HOLDOUT_CONTROLS` (1): the five faults described in NEW customer wording, and three TWO-FAULT combinations
+  (db+dependency, deploy+db, resource+dependency; the shop's fault flags are independent, verified live). Truth `"a|b"` accepts either injected cause
+  (`scoring.score_run`). `injector.inject` posts every fault of a scenario. Symptoms are tested to be new and not to name causes.
+- Rule: run them with prompts, triage rules and scorer FROZEN and record the commit; they exist because the core five were tuned on. `run_matrix.py --set core|holdout|all`.
+- Runner now detects runs whose agents reported errors (e.g. provider 429s), retries after a pause (`--retries`, `--retry-wait`), and marks still-failing runs `invalid`:
+  excluded from accuracy and shown as "Runs (invalid)". Without this a rate-limited run would look like an abstention.
+- Provider rule: any results must say which model produced them; do not mix providers in one table.
+
 ## A2A interoperability limit found (2026-10-18)
 - ADK 2.9.1 agents publish A2A 1.0 style agent cards (`supportedInterfaces`). The CrewAI environment's `a2a-sdk` 0.3.26 client cannot parse them (`url` field required), so
   a CrewAI agent cannot call an ADK agent directly with the versions CrewAI 1.15.28 pins. ADK -> CrewAI works (ADK's client reads both card formats; verified live and in tests).
