@@ -34,6 +34,19 @@ _NEGATED = re.compile(
 )
 
 
+# A hypothesis can also say that NOTHING is wrong ("operating normally ... zero errors"). That is the correct answer on a healthy
+# shop, so it must not be scored as a fault diagnosis just because it mentions "database" or "latency".
+_HEALTH_RE = re.compile(
+    r"\b(operating|running|performing|functioning|behaving)\s+(\w+\s+)?(normally|nominally|as expected)\b"
+    r"|\b(is|are)\s+healthy\b|\bno\s+(issues?|problems?|anomal(y|ies)|incident|degradation|signs?\s+of)\b|\bnothing\s+(is\s+)?wrong\b",
+    re.IGNORECASE,
+)
+_FAULT_SIGNALS = (
+    "step change", "slowdown", "slow quer", "slower", "slowed", "degrad", "spike", "failing", "fails", "failure", "unreachable",
+    "timed out", "timeout", "exhaust", "misconfig", "regression", "bug", "increase", "elevated", "jump",
+)
+
+
 def classify_statement(statement: str | None) -> str:
     """Best-effort classification of a NEXUS Hypothesis's free-text statement into the closed root-cause
     vocabulary, for scoring only (never fed back into any agent). Counts distinct keyword hits per cause after
@@ -42,6 +55,8 @@ def classify_statement(statement: str | None) -> str:
     if not statement:
         return "unknown"
     lowered = _NEGATED.sub(" ", statement.lower())
+    if _HEALTH_RE.search(statement) and not any(sig in lowered for sig in _FAULT_SIGNALS):
+        return "healthy"          # the model says nothing is wrong
     scores = {cause: sum(1 for kw in kws if kw in lowered) for cause, kws in ROOT_CAUSE_KEYWORDS.items()}
     best = max(scores.values())
     if best == 0:
@@ -54,7 +69,7 @@ def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained
     abstention or an unclassifiable statement -- both are "no diagnosis
     made", which is correctness-neutral (not counted as a false diagnosis)
     but also not counted as a correct one."""
-    made_a_diagnosis = predicted_root_cause != "unknown" and not abstained
+    made_a_diagnosis = predicted_root_cause not in ("unknown", "healthy") and not abstained
     acceptable = set(ground_truth_root_cause.split("|"))       # "a|b" = two simultaneous faults, either diagnosis is accepted
     if ground_truth_root_cause == "none":  # healthy control: the only correct answer is "no cause found"
         correct = not made_a_diagnosis
@@ -63,6 +78,7 @@ def score_run(predicted_root_cause: str, ground_truth_root_cause: str, abstained
         correct = made_a_diagnosis and predicted_root_cause in acceptable
         false_diagnosis = made_a_diagnosis and predicted_root_cause not in acceptable
     return {
+        "declared_healthy": predicted_root_cause == "healthy" and not abstained,
         "predicted_root_cause": predicted_root_cause,
         "ground_truth_root_cause": ground_truth_root_cause,
         "abstained": abstained,

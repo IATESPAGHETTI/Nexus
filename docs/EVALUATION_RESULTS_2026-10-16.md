@@ -53,24 +53,28 @@ What the stored runs show:
 Limits: n is small, the Evidence Agent's sampling varies run to run (so "critic effect" is confounded with sampling noise), and the one
 scenario driving the gap is also the one with the least clear evidence in this simulator.
 
+## Scorer fix (2026-10-18)
+After this document was first written, the scorer was corrected twice: statements that only RULE a cause out no longer count as naming it (2026-10-16), and a statement that says
+"nothing is wrong" is now recognised as `healthy` instead of being read as a fault because it mentions "database" or "latency" (2026-10-18). All 144 runs were re-scored with the
+final scorer. The only visible change in this set: `hub_persona_sre` false diagnoses 13% -> 7%. The conclusions in this document did not change.
+
 ## Generated report
-
-
+Code version: `6d3b4ea` (prompts, triage rules and scorer are as of this commit).
 Runtime: `deepseek/deepseek-chat`. Scenarios: FI-bad-deployment, FI-config-error, FI-db-slowdown, FI-dependency-failure, FI-resource-exhaustion, CTRL-healthy. Repeats per scenario/arm: 3.
 Cost is an ESTIMATE: tokens x list price (in $0.3/M, out $1.2/M; deepseek-flash peak price, an assumption because deepseek-chat is not on the pricing page).
 
 ## Per-arm results
 
-| Arm | Runs | Accuracy | False dx | Abstain | Control OK | Time s (mean±sd) | Tokens (mean±sd) | Calls | Est $/run |
+| Arm | Runs (invalid) | Accuracy | False dx | Abstain | Control OK | Time s (mean±sd) | Tokens (mean±sd) | Calls | Est $/run |
 |---|---|---|---|---|---|---|---|---|---|
-| baseline_single_agent | 18 | 87% | 7% | 7% | 100% | 1.5±0.4 | 2463±151 | 1.0 | 0.0008 |
-| hub_default | 18 | 80% | 13% | 7% | 100% | 17.6±12.3 | 35178±22911 | 11.0 | 0.0123 |
-| hub_no_critic | 18 | 100% | 0% | 0% | 100% | 10.2±1.4 | 25401±5875 | 7.3 | 0.0085 |
-| blackboard | 18 | 67% | 7% | 20% | 100% | 22.1±17.4 | 41170±33477 | 11.6 | 0.0146 |
-| hub_react | 18 | 67% | 7% | 7% | 67% | 18.9±14.5 | 38078±24559 | 10.9 | 0.0134 |
-| hub_fewshot | 18 | 40% | 13% | 40% | 100% | 21.1±14.8 | 44372±32278 | 12.4 | 0.0155 |
-| hub_persona_sre | 18 | 60% | 13% | 13% | 100% | 16.5±7.9 | 33777±19702 | 9.3 | 0.0117 |
-| hub_crewai_critic | 18 | 80% | 13% | 7% | 100% | 17.3±12.0 | 32296±19717 | 10.0 | 0.0108 |
+| baseline_single_agent | 18 (0) | 87% | 7% | 7% | 100% | 1.5±0.4 | 2463±151 | 1.0 | 0.0008 |
+| hub_default | 18 (0) | 80% | 13% | 7% | 100% | 17.6±12.3 | 35178±22911 | 11.0 | 0.0123 |
+| hub_no_critic | 18 (0) | 100% | 0% | 0% | 100% | 10.2±1.4 | 25401±5875 | 7.3 | 0.0085 |
+| blackboard | 18 (0) | 67% | 7% | 20% | 100% | 22.1±17.4 | 41170±33477 | 11.6 | 0.0146 |
+| hub_react | 18 (0) | 67% | 7% | 7% | 67% | 18.9±14.5 | 38078±24559 | 10.9 | 0.0134 |
+| hub_fewshot | 18 (0) | 40% | 13% | 40% | 100% | 21.1±14.8 | 44372±32278 | 12.4 | 0.0155 |
+| hub_persona_sre | 18 (0) | 60% | 7% | 13% | 100% | 16.5±7.9 | 33777±19702 | 9.3 | 0.0117 |
+| hub_crewai_critic | 18 (0) | 80% | 13% | 7% | 100% | 17.3±12.0 | 32296±19717 | 10.0 | 0.0108 |
 
 ## Comparisons the arms answer
 
@@ -113,3 +117,4 @@ Cost is an ESTIMATE: tokens x list price (in $0.3/M, out $1.2/M; deepseek-flash 
 - Triage chooses which specialists are called from the symptom text, so arms call different numbers of agents.
 - Recovery calls are excluded from every arm (trigger_recovery=False), so token totals cover diagnosis only.
 - Latency includes provider rate-limit retries and shared-machine noise.
+- Runs whose agents reported errors (for example provider rate limits) were retried; runs still failing are listed as invalid and excluded from accuracy.

@@ -106,7 +106,7 @@ def test_classifier_labels_real_pilot_statements_correctly():
     labelled the configuration statements 'db_slowdown' because they mention DB_POOL_SIZE."""
     import json
     fixtures = json.loads((Path(__file__).parent / "real_statements.json").read_text(encoding="utf-8"))
-    assert len(fixtures) >= 6
+    assert len(fixtures) >= 8
     for f in fixtures:
         assert scoring.classify_statement(f["statement"]) == f["truth"], f["statement"][:120]
 
@@ -230,3 +230,17 @@ def test_a_run_with_no_model_output_is_detected_as_empty():
     assert run_matrix.produced_nothing({"token_cost": scoring.TOKEN_COST_UNAVAILABLE})
     assert run_matrix.produced_nothing({"token_cost": {"total_tokens": 0}})
     assert not run_matrix.produced_nothing({"token_cost": {"total_tokens": 1234}})
+
+
+def test_a_statement_that_nothing_is_wrong_is_correct_on_a_healthy_shop_and_never_a_diagnosis():
+    healthy = "Everything is operating normally: no errors, and database latencies are around 1 ms."
+    assert scoring.classify_statement(healthy) == "healthy"
+    ok = scoring.score_run("healthy", "none", abstained=False)
+    assert ok["correct"] and not ok["false_diagnosis"] and ok["declared_healthy"]
+    missed = scoring.score_run("healthy", "db_slowdown", abstained=False)       # claiming health during a fault is a miss, not a diagnosis
+    assert not missed["correct"] and not missed["false_diagnosis"] and missed["declared_healthy"]
+
+
+def test_a_real_fault_statement_is_not_mistaken_for_healthy():
+    assert scoring.classify_statement("There is no deployment change, but a step change in database latency started at 10:42 and slow queries followed.") == "db_slowdown"
+    assert scoring.classify_statement("Requests to /orders are operating normally except that they fail with timeouts calling the payment-service.") == "dependency_failure"

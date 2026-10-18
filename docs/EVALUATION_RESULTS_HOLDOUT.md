@@ -14,15 +14,15 @@
 
 ## How to read the numbers
 - Each cell is 1 or 2 runs. **Nothing here is statistically meaningful**; it shows where to look, not what is true.
-- The single-agent baseline got every held-out case right including the healthy control (11/11), at about a seventh of the tokens. The multi-agent arms were worse on this
+- The single-agent baseline got every held-out case right including the healthy control (11/11), at about a seventh of the tokens. The multi-agent arms scored 56-70% on this
   provider and these scenarios. Do not generalise: other models behave differently.
-- **The healthy control is the worrying cell**: all four multi-agent arms named a cause on a healthy shop (0/1 each), while the baseline correctly said "unknown". One run each,
-  on a free-tier model, so treat it as a lead to investigate (do the agents over-read normal start-up latency in the traces?), not a measured rate.
+- **Correction (same day):** an earlier version of this page said all four multi-agent arms named a cause on the healthy control. That was a SCORING error, not a system error:
+  their hypotheses said the shop was "operating normally" (and the Critic agreed), but the scorer read the words "database" and "latency" as a slow-database diagnosis. The scorer now
+  recognises "nothing is wrong" statements, and every stored run was re-scored with it: the healthy control is 100% for all arms (1 run each).
 - Two-fault scenarios accept either injected cause as correct (`"a|b"` truth).
 
 ## Generated report
-
-Code version: `7a63550` (prompts, triage rules and scorer are as of this commit).
+Code version: `6d3b4ea` (prompts, triage rules and scorer are as of this commit).
 Runtime: `gemini/gemini-3.5-flash-lite`. Scenarios: HO-healthy-control, HO-reworded-bad-deployment, HO-reworded-config-error, HO-reworded-db-slowdown, HO-reworded-dependency-failure, HO-reworded-resource-exhaustion, HO-two-faults-db-dependency, HO-two-faults-deploy-db, HO-two-faults-resource-dependency. Repeats per scenario/arm: 2.
 Cost is an ESTIMATE: tokens x list price (in $0.3/M, out $1.2/M; deepseek-flash peak price, an assumption because deepseek-chat is not on the pricing page).
 
@@ -31,10 +31,10 @@ Cost is an ESTIMATE: tokens x list price (in $0.3/M, out $1.2/M; deepseek-flash 
 | Arm | Runs (invalid) | Accuracy | False dx | Abstain | Control OK | Time s (mean±sd) | Tokens (mean±sd) | Calls | Est $/run |
 |---|---|---|---|---|---|---|---|---|---|
 | baseline_single_agent | 11 (0) | 100% | 0% | 0% | 100% | 1.9±0.6 | 2932±111 | 1.0 | 0.0009 |
-| hub_default | 11 (0) | 70% | 0% | 10% | 0% | 10.9±2.6 | 19666±11379 | 8.5 | 0.0065 |
-| hub_no_critic | 10 (0) | 56% | 11% | 0% | 0% | 8.5±1.0 | 17457±7958 | 7.5 | 0.0057 |
-| blackboard | 10 (0) | 56% | 11% | 0% | 0% | 10.3±1.3 | 20842±11141 | 8.2 | 0.0068 |
-| pipeline | 10 (0) | 56% | 0% | 0% | 0% | 16.9±9.6 | 20857±10966 | 8.3 | 0.0068 |
+| hub_default | 11 (0) | 70% | 0% | 10% | 100% | 10.9±2.6 | 19666±11379 | 8.5 | 0.0065 |
+| hub_no_critic | 10 (0) | 56% | 0% | 0% | 100% | 8.5±1.0 | 17457±7958 | 7.5 | 0.0057 |
+| blackboard | 10 (0) | 56% | 11% | 0% | 100% | 10.3±1.3 | 20842±11141 | 8.2 | 0.0068 |
+| pipeline | 10 (0) | 56% | 0% | 0% | 100% | 16.9±9.6 | 20857±10966 | 8.3 | 0.0068 |
 
 ## Comparisons the arms answer
 
@@ -56,7 +56,7 @@ Cost is an ESTIMATE: tokens x list price (in $0.3/M, out $1.2/M; deepseek-flash 
 
 | Scenario | baseline_single_agent | hub_default | hub_no_critic | blackboard | pipeline |
 |---|---|---|---|---|---|
-| HO-healthy-control | 1/1 | 0/1 | 0/1 | 0/1 | 0/1 |
+| HO-healthy-control | 1/1 | 1/1 | 1/1 | 1/1 | 1/1 |
 | HO-reworded-bad-deployment | 2/2 | 2/2 | 1/1 | 1/1 | 1/1 |
 | HO-reworded-config-error | 1/1 | 1/1 | 1/1 | 1/1 | 1/1 |
 | HO-reworded-db-slowdown | 2/2 | 1/2 | 0/2 | 0/2 | 0/2 |

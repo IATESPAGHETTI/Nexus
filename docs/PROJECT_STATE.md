@@ -9,7 +9,7 @@
 ## Held-out run, PARTIAL (2026-10-18) — see docs/EVALUATION_RESULTS_HOLDOUT.md
 - 52 valid runs, 5 arms, Gemini `gemini-3.5-flash-lite`. Free tier = 15 requests/min AND 500/day/model: the run hit the daily cap; 13 empty runs removed (raw kept).
   Runner now also treats zero-token runs as invalid and stops after 3 in a row. `hub_analysis_tools` and `hub_crewai_both` were not run yet; resume command in the results file.
-- Partial finding (n=1-2 per cell, NOT significant): baseline 11/11; multi-agent arms 56-70%; all four multi-agent arms named a cause on the healthy control (worth investigating).
+- Partial finding (n=1-2 per cell, NOT significant): baseline 11/11; multi-agent arms 56-70%. The healthy control looked like a failure for all multi-agent arms; that was a SCORER bug (hypotheses said "operating normally" and were read as a database fault). Fixed (`healthy` class), all stored runs re-scored: control 100%. The DeepSeek 144-run set was re-scored too (only hub_persona_sre false diagnoses 13% -> 7%).
 
 ## Held-out scenarios + rate-limit-aware runner (2026-10-18) — implemented + tested; NOT yet run
 - `fault_injection/scenarios.py::HOLDOUT_SCENARIOS` (8) + `HOLDOUT_CONTROLS` (1): the five faults described in NEW customer wording, and three TWO-FAULT combinations
