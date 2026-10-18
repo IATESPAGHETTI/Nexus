@@ -571,3 +571,7 @@ Dashboard-only change (`dashboard/`, one `.claude/launch.json` addition). No edi
 
 
 _Older history: see `docs/archive/PROJECT_STATE_HISTORY.md`._
+
+## 2026-10-19 - Held-out matrix complete
+- 126/126 valid runs (Gemini `gemini-3.5-flash-lite`, 3 owner keys used in turn, same model). Baseline 94%; multi-agent arms 62-75% (not separable at n=18); hub/no-critic/blackboard/pipeline named a fault on the healthy control in 1 of 2 runs. Details: `docs/EVALUATION_RESULTS_HOLDOUT.md`. Raw results are gitignored under `evaluation/results/`.
+- Still not verified: real Jaeger receiving OTLP; Azure scripts and Approve on the VM.

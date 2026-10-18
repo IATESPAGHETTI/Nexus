@@ -19,4 +19,4 @@ Every command below is run from the repository root. "Free" means it uses no mod
 
 ## What would make a reviewer's claim "fully verified"
 Things that are written but have not been observed yet: real Jaeger receiving a trace; the Azure scripts running on the VM; Approve -> execute -> verify on the cloud
-site; the new pipeline / analysis-tool / CrewAI-evidence variants measured against the others at a sample size that can show a difference.
+site; and a sample large enough to separate the multi-agent variants (the held-out run, 126 valid runs on Gemini, measured pipeline, analysis tools and CrewAI Evidence+Critic, but 18 runs per arm cannot rank them; see `docs/EVALUATION_RESULTS_HOLDOUT.md`).
