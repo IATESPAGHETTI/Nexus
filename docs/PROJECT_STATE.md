@@ -6,6 +6,12 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Second MCP server (2026-10-18) — implemented + tested; verified live on Gemini
+- `mcp/analysis_server.py`: runbook file parser, safe calculator, latency step-change statistics tool (9 MCP tools across 2 independent servers). Tests: 32 unit + 2 real-protocol.
+- Behind `NEXUS_ENABLE_ANALYSIS_TOOLS=1` (default OFF so the measured baseline is unchanged). Live (Gemini, db_slowdown): Metrics agent called `detect_latency_step`
+  (35 requests, step found) and `evaluate_expression`; DIAGNOSED in 12 s, 12 calls, 39.5k tokens. The runbook tool was not used in that run.
+- Not measured: whether these tools change accuracy; they need their own matrix arm (week 4).
+
 ## CrewAI: Crew/Task, callbacks, second agent (2026-10-18) — implemented + tested; verified live on Gemini
 - The CrewAI Critic and a NEW CrewAI Evidence Agent now use real `Agent` + `Task` + `Crew` (`crewai_critic/crewai_common.py`), with `step_callback` /
   `task_callback` writing into the same `AgentMonitor` as the ADK callbacks and token usage measured from `Crew.token_usage` (the earlier "0 tokens for the CrewAI

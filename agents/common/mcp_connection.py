@@ -58,3 +58,42 @@ def mcp_server_connection_params() -> StdioConnectionParams:
         ),
         timeout=MCP_CONNECT_TIMEOUT_SECONDS,
     )
+
+
+# --------------------------------------------------------------------------- second MCP server (analysis tools)
+MCP_ANALYSIS_SCRIPT = MCP_DIR / "analysis_server.py"
+
+# Off by default so default behaviour equals the measured baseline; NEXUS_ENABLE_ANALYSIS_TOOLS=1 gives these agents a
+# runbook parser, a safe calculator and a latency-step statistics tool from a SECOND, independent MCP server.
+ANALYSIS_TOOLS_BY_AGENT = {
+    "metrics_agent": ["detect_latency_step", "evaluate_expression"],
+    "logs_traces_agent": ["search_runbook"],
+}
+
+ANALYSIS_INSTRUCTION = (
+    "\n\nEXTRA TOOLS from a second tool server (use them only when they help):\n"
+    "- detect_latency_step(path, limit): percentiles and a step-change test on recent request durations for one endpoint; "
+    "it reports whether latency jumped and when. Use it instead of eyeballing numbers.\n"
+    "- evaluate_expression(expression): exact arithmetic (ratios, percentages). Never do arithmetic in your head.\n"
+    "- search_runbook(query): general operations notes about what a pattern USUALLY means. It is reference material, "
+    "not evidence about this incident: never present a runbook match as an observation."
+)
+
+
+def analysis_tools_enabled() -> bool:
+    return os.environ.get("NEXUS_ENABLE_ANALYSIS_TOOLS") == "1"
+
+
+def analysis_tools_for(agent_name: str) -> list[str]:
+    return list(ANALYSIS_TOOLS_BY_AGENT.get(agent_name, [])) if analysis_tools_enabled() else []
+
+
+def analysis_server_connection_params() -> StdioConnectionParams:
+    if not _MCP_PYTHON_OVERRIDE and not MCP_SERVER_PYTHON.exists():
+        raise RuntimeError(f"MCP server interpreter not found at {MCP_SERVER_PYTHON}")
+    return StdioConnectionParams(
+        server_params=StdioServerParameters(
+            command=str(MCP_SERVER_PYTHON), args=[str(MCP_ANALYSIS_SCRIPT)], cwd=str(MCP_DIR), env=mcp_server_env(),
+        ),
+        timeout=MCP_CONNECT_TIMEOUT_SECONDS,
+    )

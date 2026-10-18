@@ -32,7 +32,12 @@ from callbacks import AgentMonitor
 from guard_callbacks import AgentGuard, guardrails_enabled, merge_callbacks
 from prompt_variants import apply_variant
 from finding import build_finding, make_evidence_item, now_iso
-from mcp_connection import mcp_server_connection_params
+from mcp_connection import (
+    ANALYSIS_INSTRUCTION,
+    analysis_server_connection_params,
+    analysis_tools_for,
+    mcp_server_connection_params,
+)
 from usage_tally import UsageTally
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -86,19 +91,27 @@ class DiagnosticAgent:
             parts.append(guard.callbacks())
         return merge_callbacks(*parts)
 
+    def _tool_names(self) -> list[str]:
+        return [*self.allowed_tools, *analysis_tools_for(self.agent_name)]
+
     def build_adk_agent(self, monitor: AgentMonitor | None = None) -> Agent:
-        toolset = McpToolset(
-            connection_params=mcp_server_connection_params(),
-            tool_filter=self.allowed_tools,
-        )
+        toolsets = [
+            McpToolset(
+                connection_params=mcp_server_connection_params(),
+                tool_filter=self.allowed_tools,
+            )
+        ]
+        extra = analysis_tools_for(self.agent_name)
+        if extra:  # NEXUS_ENABLE_ANALYSIS_TOOLS=1: a second, independent MCP server
+            toolsets.append(McpToolset(connection_params=analysis_server_connection_params(), tool_filter=extra))
         provider, _ = resolve_runtime_config()
         model_kwargs = {"include_reasoning": False} if provider == "groq" else {}
         return Agent(
             name=self.agent_name,
             description=self.description,
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
-            instruction=self.instruction,
-            tools=[toolset],
+            instruction=self.instruction + (ANALYSIS_INSTRUCTION if extra else ""),
+            tools=toolsets,
             **self._callbacks(monitor),
         )
 
@@ -129,12 +142,12 @@ class DiagnosticAgent:
                     continue
                 for part in event.content.parts:
                     call = getattr(part, "function_call", None)
-                    if call and call.name in self.allowed_tools:
+                    if call and call.name in self._tool_names():
                         key = call.id or call.name
                         pending_calls[key] = {"tool": call.name, "arguments": dict(call.args or {})}
 
                     response = getattr(part, "function_response", None)
-                    if response and response.name in self.allowed_tools:
+                    if response and response.name in self._tool_names():
                         key = response.id or response.name
                         call_info = pending_calls.pop(key, {"tool": response.name, "arguments": {}})
                         raw = response.response

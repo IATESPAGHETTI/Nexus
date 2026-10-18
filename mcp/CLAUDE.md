@@ -37,6 +37,14 @@ run_diagnostic(name)                           -> named, pre-approved composite 
 `run_diagnostic` never accepts arbitrary code/SQL/shell — only one of the 3 fixed
 names in `config.DIAGNOSTIC_NAMES`.
 
+## Second MCP server: analysis tools (2026-10-18)
+`analysis_server.py` + `analysis_tools.py` + `runbooks/*.md`: three more tools from a SEPARATE MCP server (own process), so agents talk to two independent tool servers.
+- `search_runbook(query, limit)` — file parser: splits the Markdown runbooks into sections and returns best matches (reference material, flagged "not evidence").
+- `evaluate_expression(expression)` — calculator: arithmetic only via the AST (no names/calls/attributes, bounded powers).
+- `detect_latency_step(path, limit)` — statistics: percentiles and a step-change test over recent shop traces, with the onset time.
+Off by default; `NEXUS_ENABLE_ANALYSIS_TOOLS=1` gives `metrics_agent` the last two and `logs_traces_agent` the first
+(`agents/common/mcp_connection.py::ANALYSIS_TOOLS_BY_AGENT`). Tests: `tests/test_analysis_tools.py` (32 unit), `tests/test_analysis_protocol.py` (2, real MCP over stdio).
+
 ## Dependency isolation
 Own venv: `.venv-mcp/` at repo root (gitignored), own `requirements.txt`. Never
 install into the shared backend/production venv or `.venv-orchestrator/`.
