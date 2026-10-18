@@ -1,4 +1,5 @@
 """Pure tests for evaluation/matrix.py and the healthy-control scoring (no network, no model)."""
+import os
 import sys
 from pathlib import Path
 
@@ -244,3 +245,50 @@ def test_a_statement_that_nothing_is_wrong_is_correct_on_a_healthy_shop_and_neve
 def test_a_real_fault_statement_is_not_mistaken_for_healthy():
     assert scoring.classify_statement("There is no deployment change, but a step change in database latency started at 10:42 and slow queries followed.") == "db_slowdown"
     assert scoring.classify_statement("Requests to /orders are operating normally except that they fail with timeouts calling the payment-service.") == "dependency_failure"
+
+
+# ------------------------------------------------------------------ API key rotation (owner's own keys, same provider)
+def test_keyring_uses_distinct_nonempty_keys_in_order_and_never_exposes_values():
+    import run_matrix
+    ring = run_matrix.KeyRing({"GEMINI_API_KEY": "key-one", "GEMINI_API_KEY_2": "key-two", "GEMINI_API_KEY_3": "key-one"})   # 3rd is a duplicate
+    assert ring.names == ["GEMINI_API_KEY", "GEMINI_API_KEY_2"]
+    env = ring.environ
+    assert ring.rotate() == "GEMINI_API_KEY_2" and env["GEMINI_API_KEY"] == "key-two"
+    assert ring.rotate() is None                                                     # nothing left
+    assert run_matrix.KeyRing({"GEMINI_API_KEY": "a"}).names == ["GEMINI_API_KEY"]
+    assert run_matrix.KeyRing({}).names == []
+
+
+def test_matrix_switches_key_when_three_runs_come_back_empty_and_redoes_them(monkeypatch, tmp_path):
+    import json as _json
+    import run_matrix
+
+    monkeypatch.setenv("NEXUS_LLM_PROVIDER", "gemini")
+    monkeypatch.setenv("GEMINI_API_KEY", "exhausted-key")
+    monkeypatch.setenv("GEMINI_API_KEY_2", "fresh-key")
+    starts = []
+
+    class FakeStack:
+        def start(self, env): starts.append(os.environ["GEMINI_API_KEY"])
+        def stop(self): pass
+
+    def fake_run(arm, sid, rep):
+        key = os.environ["GEMINI_API_KEY"]
+        empty = key == "exhausted-key"
+        return {"arm": arm.name, "scenario_id": sid, "repeat": rep, "ground_truth_root_cause": "db_slowdown",
+                "predicted_root_cause": "unknown" if empty else "db_slowdown", "correct": not empty, "false_diagnosis": False,
+                "abstained": empty, "latency_seconds": 1.0, "agent_errors": 0,
+                "token_cost": scoring.TOKEN_COST_UNAVAILABLE if empty else {"llm_calls": 5, "prompt_tokens": 90, "completion_tokens": 10, "total_tokens": 100}}
+
+    monkeypatch.setattr(run_matrix, "safe_run", fake_run)
+    monkeypatch.setattr(run_matrix, "AgentStack", FakeStack)
+    monkeypatch.setattr(run_matrix, "deepseek_balance", lambda: None)
+    monkeypatch.setattr(run_matrix, "RESULTS_DIR", tmp_path)
+    monkeypatch.setattr(run_matrix.time, "sleep", lambda s: None)
+    scen = "FI-db-slowdown,FI-bad-deployment,FI-config-error,FI-dependency-failure"
+    run_matrix.main(["--arms", "hub_default", "--scenarios", scen, "--repeats", "1", "--retries", "0"])
+    out = sorted(tmp_path.glob("matrix-*.jsonl"))[-1]
+    recs = [_json.loads(line) for line in out.read_text(encoding="utf-8").splitlines()]
+    assert starts == ["exhausted-key", "fresh-key"]                       # agents were restarted on the second key
+    assert len(recs) == 4 and all(not r["invalid"] for r in recs)          # the 3 empty runs were redone, not recorded as invalid
+    assert {r["scenario_id"] for r in recs} == set(scen.split(","))

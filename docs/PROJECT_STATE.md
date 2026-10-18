@@ -6,6 +6,11 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Gemini key rotation in the experiment runner (2026-10-18) — implemented + tested with fake keys; NOT yet used live
+- `evaluation/run_matrix.py::KeyRing`: when the provider is Gemini and `GEMINI_API_KEY_2` (and `_3`) exist in `.env`, three empty runs in a row switch to the next key, restart the agents
+  on it (they read the key at start-up) and REDO the empty runs; empty runs that were not redone are recorded as invalid. Key values are never printed. Owner's decision (college project);
+  Google's free-tier terms may restrict using several projects to get around quotas, so this is the owner's risk. Results must still name one model and one provider.
+
 ## Held-out run, PARTIAL (2026-10-18) — see docs/EVALUATION_RESULTS_HOLDOUT.md
 - 52 valid runs, 5 arms, Gemini `gemini-3.5-flash-lite`. Free tier = 15 requests/min AND 500/day/model: the run hit the daily cap; 13 empty runs removed (raw kept).
   Runner now also treats zero-token runs as invalid and stops after 3 in a row. `hub_analysis_tools` and `hub_crewai_both` were not run yet; resume command in the results file.

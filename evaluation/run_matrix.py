@@ -14,6 +14,7 @@ Agents receive ONLY the blind symptom text; ground truth is read here, after the
 from __future__ import annotations
 
 import argparse
+from collections import deque
 import asyncio
 import json
 import os
@@ -160,6 +161,31 @@ def rescore(record: dict) -> dict:
     return {**record, **updated}
 
 
+class KeyRing:
+    """The owner's own API keys for ONE provider, tried in order when the current key's quota is exhausted.
+    Only names of environment variables are kept here; key values are never printed or logged."""
+
+    NAMES = ("GEMINI_API_KEY", "GEMINI_API_KEY_2", "GEMINI_API_KEY_3")
+
+    def __init__(self, environ=None) -> None:
+        self.environ = os.environ if environ is None else environ
+        seen, self.names = set(), []
+        for name in self.NAMES:
+            value = self.environ.get(name, "").strip()
+            if value and value not in seen:
+                seen.add(value)
+                self.names.append(name)
+        self.index = 0
+
+    def rotate(self) -> str | None:
+        """Make the next key the active one (GEMINI_API_KEY). Returns the variable name used, or None when none are left."""
+        if self.index + 1 >= len(self.names):
+            return None
+        self.index += 1
+        self.environ["GEMINI_API_KEY"] = self.environ[self.names[self.index]]
+        return self.names[self.index]
+
+
 def produced_nothing(rec: dict) -> bool:
     """True when a run recorded no model output at all (no tokens): the provider refused every call (quota exhausted)."""
     tc = rec.get("token_cost")
@@ -266,6 +292,10 @@ def main(argv: list[str]) -> int:
 
     stack = AgentStack()
     empty_streak = 0
+    provider_name = os.environ.get("NEXUS_LLM_PROVIDER", "deepseek").strip().lower()
+    keyring = KeyRing() if provider_name == "gemini" and len(KeyRing().names) > 1 else None
+    if keyring:
+        print(f"[key] {len(keyring.names)} Gemini keys available; the next one is used when the first one's daily quota runs out", flush=True)
     spent = sum(matrix.estimate_cost_usd(matrix.run_tokens(r)["prompt"], matrix.run_tokens(r)["completion"], args.price_in, args.price_out) for r in runs)
     try:
         for env_key, group in matrix.group_by_agent_env(arms):
@@ -275,7 +305,19 @@ def main(argv: list[str]) -> int:
             if any(a.kind == "nexus" for a, _, _ in todo):
                 print(f"[stack] starting agents with {dict(env_key) or 'default env'}", flush=True)
                 stack.start(dict(env_key))
-            for arm, sid, rep in todo:
+            queue = deque(todo)
+            pending_empty: list[tuple] = []          # recent runs that produced no output: redone if we can switch to another key
+
+            def flush_invalid() -> None:
+                """Earlier empty runs that did not turn into a 3-run streak are real invalid records: keep them."""
+                for _a, _s, _r, rc in pending_empty:
+                    runs.append(rc)
+                    with out.open("a", encoding="utf-8") as fh:
+                        fh.write(json.dumps(rc, default=str) + chr(10))
+                pending_empty.clear()
+
+            while queue:
+                arm, sid, rep = queue.popleft()
                 if spent >= args.max_spend_usd:
                     print(f"[stop] estimated spend ${spent:.3f} reached --max-spend-usd; resume later with --resume {out}")
                     raise SystemExit(0)
@@ -290,20 +332,37 @@ def main(argv: list[str]) -> int:
                 empty = produced_nothing(rec)
                 rec["invalid"] = rec.get("agent_errors", 0) > 0 or empty   # no output or still failing after retries: excluded from accuracy
                 empty_streak = empty_streak + 1 if empty else 0
+                if empty:
+                    pending_empty.append((arm, sid, rep, rec))       # held back: redone if we can switch key, else recorded as invalid
+                else:
+                    flush_invalid()
                 if empty_streak >= 3:
+                    used = keyring.rotate() if keyring else None
+                    if used:   # another key of the owner's is available: redo the empty runs on it
+                        print(f"[key] 3 empty runs in a row: the quota of the current key looks exhausted; switching to {used} and redoing them", flush=True)
+                        for a_, s_, r_, _rc in reversed(pending_empty):
+                            queue.appendleft((a_, s_, r_))
+                        pending_empty.clear()
+                        empty_streak = 0
+                        stack.start(dict(env_key))     # agents read the key at start-up
+                        continue
                     with out.open("a", encoding="utf-8") as f:
-                        f.write(json.dumps(rec, default=str) + chr(10))
+                        for _a, _s, _r, rc in pending_empty:
+                            f.write(json.dumps(rc, default=str) + chr(10))
                     print(f"[stop] 3 runs in a row produced no model output: the provider quota looks exhausted. Resume later with --resume {out}", flush=True)
                     raise SystemExit(0)
+                if empty:
+                    continue
                 t = matrix.run_tokens(rec)
                 spent += matrix.estimate_cost_usd(t["prompt"], t["completion"], args.price_in, args.price_out)
                 runs.append(rec)
                 if args.pace and arm.kind == "nexus":
                     time.sleep(args.pace)
                 with out.open("a", encoding="utf-8") as f:
-                    f.write(json.dumps(rec, default=str) + "\n")
+                    f.write(json.dumps(rec, default=str) + chr(10))
                 print(f"[{len(runs)}] {arm.name:20s} {sid:24s} #{rep} -> {rec['predicted_root_cause']:20s} "
                       f"{'INVALID' if rec.get('invalid') else ('OK ' if rec['correct'] else 'BAD')} {rec['latency_seconds']}s {t['total']} tok (est spend ${spent:.3f})", flush=True)
+            flush_invalid()
     finally:
         stack.stop()
 
