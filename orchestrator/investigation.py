@@ -46,6 +46,7 @@ import triage  # noqa: E402
 from remote_call import call_remote_agent  # noqa: E402
 import blackboard  # noqa: E402
 from nexus_guard import screen_user_text  # noqa: E402
+import nexus_otlp  # noqa: E402
 import nexus_trace  # noqa: E402
 from nexus_models import build_incident_report  # noqa: E402
 
@@ -67,12 +68,17 @@ def attach_report(incident_id: str) -> dict:
         incident = event_bridge.get_incident(incident_id)
         report = build_incident_report(incident)
         events = event_bridge.get_events(incident_id)
+        trace = nexus_trace.build_trace(incident, events)
         event_bridge.update_state(
             incident_id,
             report={**report.model_dump(), "markdown": report.to_markdown()},
-            trace=nexus_trace.build_trace(incident, events),
+            trace=trace,
             lineage=nexus_trace.build_lineage(incident, events),
         )
+        if nexus_otlp.endpoint():   # optional: send the trace to Jaeger / an OpenTelemetry collector
+            outcome = nexus_otlp.export(trace, incident)
+            event_bridge.emit_event(incident_id, "TRACE_EXPORTED", source="orchestrator",
+                                    status="ok" if outcome.get("exported") else "failed", payload=outcome)
         return event_bridge.get_incident(incident_id)
     except Exception as exc:  # noqa: BLE001
         print(f"[nexus] could not build incident report: {type(exc).__name__}", file=sys.stderr)

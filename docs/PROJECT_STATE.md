@@ -6,6 +6,15 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## OpenTelemetry export + trace timing + light incident view (2026-10-18)
+- `nexus_otlp.py`: converts the stored span tree to OTLP/HTTP JSON (one service per agent + `nexus-orchestrator`, real trace id, parent links, error status) and POSTs it to
+  `NEXUS_OTLP_ENDPOINT` after each investigation (`TRACE_EXPORTED` event, fail-soft). Plain JSON over HTTP, so no OpenTelemetry SDK (its pins conflict with the ADK stack).
+  Tested against a throwaway local collector (`tests/test_nexus_otlp.py`, 6 tests). NOT yet verified in real Jaeger: Docker Desktop's engine was off when tried.
+- Trace timing: agents now record their own wall-clock start/end (`started_unix`/`finished_unix` in `AgentMonitor.summary`), so spans are placed correctly even in the
+  pipeline (before, every agent was placed at the time its trace event was written). Older incidents fall back to event time minus duration. Times are good to ~1 s at the root.
+- Dashboard: the incident ("Mission Control" detail) view was a black shell on a light site (user complaint: "it sucks, it's just black"); it now uses the light theme
+  (`.nx-light` token overrides in `styles/global.css`, light header and body). Checked in the browser: no dark blocks, no white-on-white text.
+
 ## Pipeline topology + board view (2026-10-18) — implemented + tested; verified live on Gemini (NOT yet measured against hub/blackboard)
 - `NEXUS_TOPOLOGY=pipeline` (third topology): the Metrics agent runs FIRST and alone (where/when); the other selected specialists then run in parallel over the shared
   board, each told what Metrics found (`HANDOFF from the metrics_agent ...`, built from its own interpretation, bounded to 900 chars and passed through the injection

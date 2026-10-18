@@ -92,13 +92,33 @@ class TraceContextMiddleware:
 # ------------------------------------------------------------------ stored views
 
 
+def _epoch(ts: Any) -> Optional[float]:
+    """Seconds since the epoch for an ISO-8601 'Z' timestamp, or None."""
+    try:
+        from datetime import datetime, timezone
+
+        return datetime.fromisoformat(str(ts).replace("Z", "+00:00")).astimezone(timezone.utc).timestamp()
+    except (TypeError, ValueError):
+        return None
+
+
 def build_trace(incident: dict, events: list[dict]) -> dict:
-    """Span tree from recorded AGENT_MONITOR events. Pure; safe on partial data."""
+    """Span tree from recorded AGENT_MONITOR events. Pure; safe on partial data.
+
+    Timing: the root span starts at the incident's created_at and ends at updated_at. An agent span ends at its
+    AGENT_MONITOR event timestamp (whole seconds, as stored) and starts `total_ms` earlier. Inner spans are laid out in
+    order from the agent's start using their recorded durations. All of this is reconstructed, so spans carry
+    `time_estimated` / `start_estimated`; the numbers are good to about a second, not to the millisecond."""
     trace_id = incident.get("trace_id")
     root_id = incident.get("root_span_id") or "root"
+    root_start = _epoch(incident.get("created_at"))
+    root_end = _epoch(incident.get("updated_at"))
     spans: list[dict] = [{
         "span_id": root_id, "parent_span_id": None, "name": f"incident {incident.get('incident_id', '?')}",
         "kind": "incident", "status": incident.get("status"),
+        "start_unix_s": root_start, "offset_ms": 0,
+        "duration_ms": round((root_end - root_start) * 1000) if root_start is not None and root_end is not None else None,
+        "time_estimated": True,
     }]
     hops = {}  # agent -> A2A task/context ids from A2A_MESSAGE_SENT
     for ev in events:
@@ -115,12 +135,20 @@ def build_trace(incident: dict, events: list[dict]) -> dict:
         records = mon.get("records") or []
         total = next((r.get("total_ms") for r in records if r.get("kind") == "agent_finished"), None)
         call_span = mon.get("parent_span_id")
+        ended = _epoch(ev.get("timestamp"))
+        agent_offset = None
+        if root_start is not None and isinstance(mon.get("started_unix"), (int, float)):
+            agent_offset = max(0, round((mon["started_unix"] - root_start) * 1000))     # the agent's own clock reading
+        elif root_start is not None and ended is not None and total is not None:
+            agent_offset = max(0, round((ended - root_start) * 1000) - total)           # fallback: event time minus duration
         if call_span:
             spans.append({"span_id": call_span, "parent_span_id": root_id, "name": f"a2a call -> {agent}",
-                          "kind": "a2a_call", "a2a_task_id": hop.get("task_id"), "a2a_context_id": hop.get("context_id")})
+                          "kind": "a2a_call", "a2a_task_id": hop.get("task_id"), "a2a_context_id": hop.get("context_id"),
+                          "offset_ms": agent_offset, "duration_ms": total, "time_estimated": True})
         spans.append({
             "span_id": agent_span, "parent_span_id": call_span or root_id, "name": f"agent {agent}",
             "kind": "agent", "duration_ms": total, "trace_id_seen_by_agent": mon.get("trace_id"),
+            "offset_ms": agent_offset, "time_estimated": True,
             "a2a_task_id": hop.get("task_id"), "a2a_context_id": hop.get("context_id"),
             "prompt_variant": mon.get("prompt_variant"), "errors": mon.get("errors", 0),
         })
@@ -136,6 +164,7 @@ def build_trace(incident: dict, events: list[dict]) -> dict:
                     "span_id": r.get("span_id") or f"{agent_span}-{r.get('seq')}", "parent_span_id": agent_span,
                     "name": f"{'model' if kind.startswith('model') else 'tool'} {r.get('tool', '')}".strip(),
                     "kind": kind, "offset_ms": cursor, "duration_ms": dur, "start_estimated": True,
+                    "abs_offset_ms": (agent_offset + cursor) if agent_offset is not None else None,
                     "ok": r.get("ok"), "prompt_tokens": r.get("prompt_tokens"), "completion_tokens": r.get("completion_tokens"),
                     "error_type": r.get("error_type"),
                 })

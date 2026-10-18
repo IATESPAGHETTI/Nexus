@@ -57,6 +57,7 @@ class AgentMonitor:
         self._model_started: float | None = None
         self._tool_started: dict[str, float] = {}
         self._run_started = time.perf_counter()
+        self.started_unix = time.time()   # real wall-clock start, so the trace places this agent correctly even in a pipeline
         self.guard = None  # set by build_adk_agent when guardrails are on
         incoming = nexus_trace.current()  # the orchestrator's traceparent, read by TraceContextMiddleware
         self.trace_id = incoming.trace_id if incoming else None
@@ -163,6 +164,8 @@ class AgentMonitor:
         return {
             "agent": self.agent_name,
             "trace_id": self.trace_id,
+            "started_unix": self.started_unix,
+            "finished_unix": time.time(),
             "span_id": self.span_id,
             "parent_span_id": self.parent_span_id,
             "prompt_variant": _variant(),
