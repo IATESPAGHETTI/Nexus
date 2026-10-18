@@ -172,7 +172,13 @@ def build_report(runs: list[dict], arms: list[matrix.Arm], scenario_ids: list[st
     summaries = {n: matrix.summarize_arm(rs, price_in, price_out) for n, rs in by_arm.items() if rs}
     from runtime_config import resolve_runtime_config
     provider, model = resolve_runtime_config()
+    try:
+        import subprocess
+        commit = subprocess.run(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, capture_output=True, text=True, timeout=5).stdout.strip()
+    except Exception:  # noqa: BLE001
+        commit = "unknown"
     return {
+        "commit": commit,
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "runtime": f"{provider}/{model}",
         "scenarios": scenario_ids, "repeats": repeats, "price_in_per_m": price_in, "price_out_per_m": price_out,
         "balance_delta_usd": balance_delta, "est_cost_usd_total": round(sum(s["est_cost_usd_total"] for s in summaries.values()), 4),

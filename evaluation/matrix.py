@@ -153,6 +153,7 @@ def render_markdown(report: dict) -> str:
     lines = [
         f"# NEXUS experiment matrix ({report['timestamp']})",
         "",
+        f"Code version: `{report.get('commit', 'unknown')}` (prompts, triage rules and scorer are as of this commit).",
         f"Runtime: `{report['runtime']}`. Scenarios: {', '.join(report['scenarios'])}. Repeats per scenario/arm: {report['repeats']}.",
         f"Cost is an ESTIMATE: tokens x list price (in ${report['price_in_per_m']}/M, out ${report['price_out_per_m']}/M; "
         f"deepseek-flash peak price, an assumption because deepseek-chat is not on the pricing page).",
