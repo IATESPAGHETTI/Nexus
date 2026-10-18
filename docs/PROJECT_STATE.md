@@ -6,6 +6,16 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Gemini free-tier test (2026-10-18) — one live investigation, NOT a benchmark
+- Purpose: avoid DeepSeek spend while developing. `NEXUS_LLM_PROVIDER=gemini` works end to end through ADK + LiteLLM (tool calling over MCP, A2A, critic).
+- `gemini-2.5-flash` (the old default) returns 404 for new accounts; the key can use `gemini-3.x` models. `gemini-3.8-flash` is a thinking model limited
+  to 5 requests/min on the free tier: the first investigation abstained because agents hit HTTP 429 after LiteLLM's retries. `gemini-3.5-flash-lite` (and
+  `gemini-3.1-flash-lite`) took 14 rapid calls without limiting. Default changed to `gemini-3.5-flash-lite`.
+- Result on `gemini-3.5-flash-lite` (db_slowdown, hub, ADK critic): DIAGNOSED in ~20 s, 10 model calls, 31.4k tokens, 6 agents, no errors, recovery plan pending
+  approval (not clicked). Cost $0 (free tier). One run only: it says the pipeline works with this provider, not that accuracy is comparable to DeepSeek.
+- Rules: results must name the provider/model; do not mix providers in one comparison; free-tier prompts may be used by Google for training (nothing sensitive is sent);
+  daily quotas were not measured.
+
 ## Azure deployment + experiment matrix results (2026-10-16)
 - **Azure for Students VM is LIVE**: `Standard_B2as_v2` (2 vCPU, 8 GB) in Central India, Docker Compose full stack + Caddy HTTPS
   (`deploy/AZURE.md`, `docker-compose.tls.yml`). Verified on the VM: all 5 images built on Linux, 12 containers up (backend, orchestrator,
