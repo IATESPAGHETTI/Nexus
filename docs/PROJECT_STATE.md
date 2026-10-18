@@ -6,6 +6,16 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Pipeline topology + board view (2026-10-18) — implemented + tested; verified live on Gemini (NOT yet measured against hub/blackboard)
+- `NEXUS_TOPOLOGY=pipeline` (third topology): the Metrics agent runs FIRST and alone (where/when); the other selected specialists then run in parallel over the shared
+  board, each told what Metrics found (`HANDOFF from the metrics_agent ...`, built from its own interpretation, bounded to 900 chars and passed through the injection
+  redactor because it is model output travelling to another model). `HANDOFF` event; falls back to the plain blackboard without Metrics or with one agent.
+- Tests: `orchestrator/tests/test_pipeline.py` (5, board transport mocked). Live (Gemini, db_slowdown): bb-3 metrics finding -> bb-4 hand-off request -> bb-5/6 database + logs findings,
+  DIAGNOSED in 16 s, 12 calls, 48k tokens.
+- Dashboard: the Audit panel narrates every board entry (description, who was asked, finding + confidence, hand-off, hypotheses, verdict).
+- New matrix arms ready (not run): `pipeline`, `hub_analysis_tools`, `hub_crewai_both`.
+- Dashboard nav link renamed Overview -> Mission Control (user could not find "Mission Control" on the main page).
+
 ## Second MCP server (2026-10-18) — implemented + tested; verified live on Gemini
 - `mcp/analysis_server.py`: runbook file parser, safe calculator, latency step-change statistics tool (9 MCP tools across 2 independent servers). Tests: 32 unit + 2 real-protocol.
 - Behind `NEXUS_ENABLE_ANALYSIS_TOOLS=1` (default OFF so the measured baseline is unchanged). Live (Gemini, db_slowdown): Metrics agent called `detect_latency_step`

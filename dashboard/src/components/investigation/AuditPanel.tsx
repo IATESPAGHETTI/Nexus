@@ -33,13 +33,44 @@ export interface AuditIncident {
     critique: { verdict?: string; framework?: string } | null;
     recovery_actions: string[];
   };
-  blackboard?: { entry_id: string; type: string; author: string; timestamp: string }[];
+  blackboard?: { entry_id: string; type: string; author: string; timestamp: string; content?: Record<string, unknown> }[];
   report?: {
     markdown?: string;
     summary_rows?: string[][];
     hypotheses?: { hypothesis_id: string; status: string; confidence: number; statement: string; supporting: number; contradicting: number }[];
   };
   incident_id?: string;
+}
+
+/** One line saying what a board entry holds, from its real content (nothing is invented). */
+function describeEntry(type: string, content: Record<string, unknown> | undefined): string {
+  const c = content ?? {};
+  const text = (v: unknown) => (typeof v === "string" ? v : "");
+  const clip = (s: string, n = 110) => (s.length > n ? `${s.slice(0, n)}…` : s);
+  switch (type) {
+    case "description":
+      return clip(text(c.text));
+    case "request": {
+      const t = text(c.text);
+      const handoff = t.indexOf("HANDOFF from the");
+      const targets = Array.isArray(c.targets) ? (c.targets as string[]).join(", ") : "";
+      return handoff >= 0 ? `hand-off to ${targets}: ${clip(t.slice(handoff + 17), 90)}` : `ask ${targets}`;
+    }
+    case "finding":
+      return `${clip(text(c.interpretation), 100)} (confidence ${typeof c.confidence === "number" ? Math.round(c.confidence * 100) : "?"}%)`;
+    case "hypotheses": {
+      const list = Array.isArray(c.hypotheses) ? (c.hypotheses as { statement?: string }[]) : [];
+      return `${list.length} hypothes${list.length === 1 ? "is" : "es"}${list[0]?.statement ? `: ${clip(list[0].statement, 80)}` : ""}`;
+    }
+    case "review_request": {
+      const h = (c.hypothesis ?? {}) as { hypothesis_id?: string };
+      return `review ${h.hypothesis_id ?? "hypothesis"}`;
+    }
+    case "critique":
+      return `verdict ${text(c.verdict) || "?"}`;
+    default:
+      return "";
+  }
 }
 
 export function AuditPanel({ incident }: { incident: AuditIncident }) {
@@ -120,6 +151,7 @@ export function AuditPanel({ incident }: { incident: AuditIncident }) {
             {board.map((e) => (
               <li key={e.entry_id}>
                 <code>{e.entry_id}</code> {e.type} <span className={styles.dim}>by {e.author}</span>
+                {describeEntry(e.type, e.content) && <div className={styles.dim}>{describeEntry(e.type, e.content)}</div>}
               </li>
             ))}
           </ul>

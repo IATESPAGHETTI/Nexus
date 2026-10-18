@@ -73,8 +73,8 @@ def test_repeatability():
 def test_arms_group_so_services_restart_only_when_env_differs():
     groups = dict(matrix.group_by_agent_env(matrix.ARMS))
     default = groups[()]
-    assert {a.name for a in default} >= {"baseline_single_agent", "hub_default", "hub_no_critic", "blackboard"}
-    assert len(groups) == 5  # default, react, fewshot, persona_sre, crewai critic
+    assert {a.name for a in default} >= {"baseline_single_agent", "hub_default", "hub_no_critic", "blackboard", "pipeline"}
+    assert len(groups) == 7  # default, react, fewshot, persona_sre, crewai critic, analysis tools, crewai evidence+critic
     assert matrix.ARMS_BY_NAME["blackboard"].run_env_dict() == {"NEXUS_TOPOLOGY": "blackboard"}
     assert matrix.ARMS_BY_NAME["blackboard"].agent_env_dict() == {}   # topology needs no agent restart
 

@@ -181,6 +181,7 @@ export interface IncidentState {
 export type NexusEventType =
   | "INCIDENT_CREATED"
   | "INPUT_REJECTED"
+  | "HANDOFF"
   | "AGENT_MONITOR"
   | "BOARD_ENTRY"
   | "EVIDENCE_PARSE_WARNING"
