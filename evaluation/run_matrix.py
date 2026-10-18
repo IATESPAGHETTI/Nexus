@@ -160,6 +160,12 @@ def rescore(record: dict) -> dict:
     return {**record, **updated}
 
 
+def produced_nothing(rec: dict) -> bool:
+    """True when a run recorded no model output at all (no tokens): the provider refused every call (quota exhausted)."""
+    tc = rec.get("token_cost")
+    return not (isinstance(tc, dict) and tc.get("total_tokens"))
+
+
 def safe_run(arm: matrix.Arm, scenario_id: str, repeat: int) -> dict:
     """One run that can never abort the whole matrix: an exception (for example a provider rate limit that outlasted LiteLLM's
     own retries) becomes a failed run record with agent_errors > 0, which the caller retries and finally marks invalid."""
@@ -259,6 +265,7 @@ def main(argv: list[str]) -> int:
     print(f"results file: {out}; resuming with {len(runs)} finished runs; balance start: {balance_start}", flush=True)
 
     stack = AgentStack()
+    empty_streak = 0
     spent = sum(matrix.estimate_cost_usd(matrix.run_tokens(r)["prompt"], matrix.run_tokens(r)["completion"], args.price_in, args.price_out) for r in runs)
     try:
         for env_key, group in matrix.group_by_agent_env(arms):
@@ -280,7 +287,14 @@ def main(argv: list[str]) -> int:
                     rec = safe_run(arm, sid, rep)
                     attempts += 1
                 rec["attempts"] = attempts
-                rec["invalid"] = rec.get("agent_errors", 0) > 0     # still failing after the retries: excluded from accuracy, counted separately
+                empty = produced_nothing(rec)
+                rec["invalid"] = rec.get("agent_errors", 0) > 0 or empty   # no output or still failing after retries: excluded from accuracy
+                empty_streak = empty_streak + 1 if empty else 0
+                if empty_streak >= 3:
+                    with out.open("a", encoding="utf-8") as f:
+                        f.write(json.dumps(rec, default=str) + chr(10))
+                    print(f"[stop] 3 runs in a row produced no model output: the provider quota looks exhausted. Resume later with --resume {out}", flush=True)
+                    raise SystemExit(0)
                 t = matrix.run_tokens(rec)
                 spent += matrix.estimate_cost_usd(t["prompt"], t["completion"], args.price_in, args.price_out)
                 runs.append(rec)

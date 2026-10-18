@@ -6,6 +6,11 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Held-out run, PARTIAL (2026-10-18) — see docs/EVALUATION_RESULTS_HOLDOUT.md
+- 52 valid runs, 5 arms, Gemini `gemini-3.5-flash-lite`. Free tier = 15 requests/min AND 500/day/model: the run hit the daily cap; 13 empty runs removed (raw kept).
+  Runner now also treats zero-token runs as invalid and stops after 3 in a row. `hub_analysis_tools` and `hub_crewai_both` were not run yet; resume command in the results file.
+- Partial finding (n=1-2 per cell, NOT significant): baseline 11/11; multi-agent arms 56-70%; all four multi-agent arms named a cause on the healthy control (worth investigating).
+
 ## Held-out scenarios + rate-limit-aware runner (2026-10-18) — implemented + tested; NOT yet run
 - `fault_injection/scenarios.py::HOLDOUT_SCENARIOS` (8) + `HOLDOUT_CONTROLS` (1): the five faults described in NEW customer wording, and three TWO-FAULT combinations
   (db+dependency, deploy+db, resource+dependency; the shop's fault flags are independent, verified live). Truth `"a|b"` accepts either injected cause

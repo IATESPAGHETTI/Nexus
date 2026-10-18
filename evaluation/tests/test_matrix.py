@@ -223,3 +223,10 @@ def test_an_exception_in_one_run_becomes_an_invalid_record_not_a_crash(monkeypat
     monkeypatch.setattr(run_matrix, "run_one", boom)
     rec = run_matrix.safe_run(matrix.ARMS_BY_NAME["hub_default"], "FI-db-slowdown", 0)
     assert rec["agent_errors"] == 1 and rec["status"] == "ERROR" and "RateLimitError" in rec["error"] and rec["correct"] is False
+
+
+def test_a_run_with_no_model_output_is_detected_as_empty():
+    import run_matrix
+    assert run_matrix.produced_nothing({"token_cost": scoring.TOKEN_COST_UNAVAILABLE})
+    assert run_matrix.produced_nothing({"token_cost": {"total_tokens": 0}})
+    assert not run_matrix.produced_nothing({"token_cost": {"total_tokens": 1234}})
