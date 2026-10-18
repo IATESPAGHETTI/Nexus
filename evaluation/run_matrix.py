@@ -160,6 +160,20 @@ def rescore(record: dict) -> dict:
     return {**record, **updated}
 
 
+def safe_run(arm: matrix.Arm, scenario_id: str, repeat: int) -> dict:
+    """One run that can never abort the whole matrix: an exception (for example a provider rate limit that outlasted LiteLLM's
+    own retries) becomes a failed run record with agent_errors > 0, which the caller retries and finally marks invalid."""
+    try:
+        return asyncio.run(run_one(arm, scenario_id, repeat))
+    except Exception as exc:  # noqa: BLE001
+        truth = scenarios.get_ground_truth(scenario_id)["ground_truth_root_cause"]
+        rec = scoring.score_run("unknown", truth, abstained=True)
+        rec.update({"arm": arm.name, "scenario_id": scenario_id, "repeat": repeat, "ground_truth_root_cause": truth,
+                    "latency_seconds": 0.0, "token_cost": scoring.TOKEN_COST_UNAVAILABLE, "tool_calls": 0, "status": "ERROR",
+                    "agent_errors": 1, "error": f"{type(exc).__name__}: {str(exc)[:160]}"})
+        return rec
+
+
 def load_done(path: Path) -> list[dict]:
     if not path.exists():
         return []
@@ -198,6 +212,7 @@ def main(argv: list[str]) -> int:
     ap.add_argument("--resume", default=None, help="a matrix-*.jsonl file to continue")
     ap.add_argument("--retries", type=int, default=2, help="re-run a run whose agents reported errors (e.g. provider rate limits)")
     ap.add_argument("--retry-wait", type=int, default=65, help="seconds to wait before a retry (free tiers limit requests per minute)")
+    ap.add_argument("--pace", type=int, default=0, help="seconds to wait after every run (use ~60 on a free tier limited to 15 requests/minute)")
     ap.add_argument("--plan", action="store_true", help="print the size/time/cost estimate and exit")
     ap.add_argument("--report-only", default=None, help="a matrix-*.jsonl file: re-score with the current scorer and write the report, no runs")
     ap.add_argument("--max-spend-usd", type=float, default=1.0, help="stop when the ESTIMATED spend reaches this")
@@ -257,18 +272,20 @@ def main(argv: list[str]) -> int:
                 if spent >= args.max_spend_usd:
                     print(f"[stop] estimated spend ${spent:.3f} reached --max-spend-usd; resume later with --resume {out}")
                     raise SystemExit(0)
-                rec = asyncio.run(run_one(arm, sid, rep))
+                rec = safe_run(arm, sid, rep)
                 attempts = 1
                 while rec.get("agent_errors", 0) > 0 and attempts <= args.retries:   # provider errors: pause, then run again
                     print(f"   run had {rec['agent_errors']} agent error(s) (rate limit?); waiting {args.retry_wait}s, retry {attempts}/{args.retries}", flush=True)
                     time.sleep(args.retry_wait)
-                    rec = asyncio.run(run_one(arm, sid, rep))
+                    rec = safe_run(arm, sid, rep)
                     attempts += 1
                 rec["attempts"] = attempts
                 rec["invalid"] = rec.get("agent_errors", 0) > 0     # still failing after the retries: excluded from accuracy, counted separately
                 t = matrix.run_tokens(rec)
                 spent += matrix.estimate_cost_usd(t["prompt"], t["completion"], args.price_in, args.price_out)
                 runs.append(rec)
+                if args.pace and arm.kind == "nexus":
+                    time.sleep(args.pace)
                 with out.open("a", encoding="utf-8") as f:
                     f.write(json.dumps(rec, default=str) + "\n")
                 print(f"[{len(runs)}] {arm.name:20s} {sid:24s} #{rep} -> {rec['predicted_root_cause']:20s} "

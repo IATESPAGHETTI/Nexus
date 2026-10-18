@@ -212,3 +212,14 @@ def test_runner_retries_a_run_with_agent_errors_then_marks_it_invalid(monkeypatc
     assert rec["invalid"] is True and rec["attempts"] == 3
     import shutil
     shutil.rmtree(Path(__file__).parent / "_tmp_results")
+
+
+def test_an_exception_in_one_run_becomes_an_invalid_record_not_a_crash(monkeypatch):
+    import run_matrix
+
+    async def boom(arm, sid, rep):
+        raise RuntimeError("RateLimitError: quota exceeded")
+
+    monkeypatch.setattr(run_matrix, "run_one", boom)
+    rec = run_matrix.safe_run(matrix.ARMS_BY_NAME["hub_default"], "FI-db-slowdown", 0)
+    assert rec["agent_errors"] == 1 and rec["status"] == "ERROR" and "RateLimitError" in rec["error"] and rec["correct"] is False
