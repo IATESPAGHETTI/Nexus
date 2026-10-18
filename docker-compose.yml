@@ -14,6 +14,7 @@
 #   NEXUS_INTERNAL_TOKEN   shared secret between backend and orchestrator
 #   NEXUS_PROMPT_VARIANT / NEXUS_TOPOLOGY / NEXUS_GUARDRAILS   experiment switches (see docs/PROJECT_STATE.md)
 #   CRITIC_URL             http://critic:8106 (ADK, default) or http://crewai-critic:8106 (needs --profile crewai)
+#   EVIDENCE_URL           http://evidence:8105 (ADK, default) or http://crewai-evidence:8105 (needs --profile crewai)
 
 x-llm-env: &llm-env
   DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
@@ -25,7 +26,7 @@ x-agent-urls: &agent-urls
   NEXUS_AGENT_URL_LOGS_TRACES_AGENT: http://logs-traces:8102
   NEXUS_AGENT_URL_CHANGE_ANALYSIS_AGENT: http://change-analysis:8103
   NEXUS_AGENT_URL_DATABASE_AGENT: http://database-agent:8104
-  NEXUS_AGENT_URL_EVIDENCE_AGENT: http://evidence:8105
+  NEXUS_AGENT_URL_EVIDENCE_AGENT: ${EVIDENCE_URL:-http://evidence:8105}
   NEXUS_AGENT_URL_ROOT_CAUSE_CRITIC: ${CRITIC_URL:-http://critic:8106}
   NEXUS_AGENT_URL_RECOVERY_AGENT: http://recovery:8107
 
@@ -93,6 +94,7 @@ services:
       NEXUS_PROMPT_VARIANT: ${NEXUS_PROMPT_VARIANT:-default}
       NEXUS_GUARDRAILS: ${NEXUS_GUARDRAILS:-1}
       NEXUS_CRITIC_FRAMEWORK: ${NEXUS_CRITIC_FRAMEWORK:-adk}
+      NEXUS_EVIDENCE_FRAMEWORK: ${NEXUS_EVIDENCE_FRAMEWORK:-adk}
       NEXUS_TRIAGE: ${NEXUS_TRIAGE:-1}
       MAX_LLM_CALLS_PER_INCIDENT: ${MAX_LLM_CALLS_PER_INCIDENT:-60}
       MAX_TOTAL_TOKENS_PER_INCIDENT: ${MAX_TOTAL_TOKENS_PER_INCIDENT:-250000}
@@ -150,6 +152,21 @@ services:
       <<: *llm-env
       NEXUS_BACKEND_URL: http://backend:8000
       NEXUS_ADVERTISE_HOST: crewai-critic
+      NEXUS_PROMPT_VARIANT: ${NEXUS_PROMPT_VARIANT:-default}
+      NEXUS_GUARDRAILS: ${NEXUS_GUARDRAILS:-1}
+
+  crewai-evidence:
+    profiles: ["crewai"]
+    build:
+      context: .
+      dockerfile: crewai_critic/Dockerfile
+    command: ["python", "crewai_critic/evidence_service.py"]
+    restart: unless-stopped
+    environment:
+      <<: *llm-env
+      NEXUS_BACKEND_URL: http://backend:8000
+      NEXUS_ADVERTISE_HOST: crewai-evidence
+      EVIDENCE_PORT: "8105"
       NEXUS_PROMPT_VARIANT: ${NEXUS_PROMPT_VARIANT:-default}
       NEXUS_GUARDRAILS: ${NEXUS_GUARDRAILS:-1}
 

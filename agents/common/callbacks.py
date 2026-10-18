@@ -125,6 +125,21 @@ class AgentMonitor:
         )
         return None
 
+    # ---- CrewAI hooks (Agent(step_callback=...), Task(callback=...)): same record format as the ADK callbacks
+    def crewai_step(self, step: Any) -> None:
+        """Called by CrewAI after each agent step. Records what kind of step it was (tool call or final answer) and
+        which tool, never the tool's arguments or output."""
+        self._add(
+            "crewai_step",
+            step_type=type(step).__name__,
+            tool=getattr(step, "tool", None) if isinstance(getattr(step, "tool", None), str) else None,
+        )
+
+    def crewai_task(self, output: Any) -> None:
+        """Called by CrewAI when a Task finishes."""
+        raw = getattr(output, "raw", None)
+        self._add("crewai_task_finished", output_chars=len(raw) if isinstance(raw, str) else None)
+
     def after_agent(self, callback_context: Any) -> None:
         self._add("agent_finished", total_ms=round((time.perf_counter() - self._run_started) * 1000))
         return None

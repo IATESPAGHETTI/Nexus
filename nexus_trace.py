@@ -130,7 +130,7 @@ def build_trace(incident: dict, events: list[dict]) -> dict:
             kind = r.get("kind", "")
             if kind in ("model_call_started", "tool_call_started"):
                 started[kind.split("_")[0]] = r
-            elif kind in ("model_call_finished", "tool_call_finished", "tool_error", "model_error"):
+            elif kind in ("model_call_finished", "tool_call_finished", "tool_error", "model_error", "crewai_step", "crewai_task_finished"):
                 dur = r.get("duration_ms") or 0
                 spans.append({
                     "span_id": r.get("span_id") or f"{agent_span}-{r.get('seq')}", "parent_span_id": agent_span,

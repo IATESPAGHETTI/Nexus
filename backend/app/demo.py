@@ -187,15 +187,19 @@ AGENT_SCRIPTS: dict[str, str] = {
 }
 AGENTS_PYTHON = REPO_ROOT / ".venv-agents" / "Scripts" / "python.exe"
 CREWAI_PYTHON = REPO_ROOT / ".venv-crewai" / "Scripts" / "python.exe"
-CREWAI_CRITIC_SCRIPT = "crewai_critic/a2a_service.py"
+# Agents that have a CrewAI implementation: name -> (owner env var, script). Only the OWNER's environment can switch an
+# agent to CrewAI (never request input); it is then served from the CrewAI venv at the same A2A address.
+CREWAI_AGENTS = {
+    "root_cause_critic": ("NEXUS_CRITIC_FRAMEWORK", "crewai_critic/a2a_service.py"),
+    "evidence_agent": ("NEXUS_EVIDENCE_FRAMEWORK", "crewai_critic/evidence_service.py"),
+}
 
 
 def _launch_spec(name: str, script: str) -> tuple[Path, str]:
-    """Which interpreter + script starts this agent. Only the Critic can change, and only
-    when the OWNER sets NEXUS_CRITIC_FRAMEWORK=crewai (env, never request input): it is then
-    served by the CrewAI implementation (own venv) at the same A2A address."""
-    if name == "root_cause_critic" and os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk").lower() == "crewai":
-        return CREWAI_PYTHON, CREWAI_CRITIC_SCRIPT
+    """Which interpreter + script starts this agent."""
+    choice = CREWAI_AGENTS.get(name)
+    if choice and os.environ.get(choice[0], "adk").lower() == "crewai":
+        return CREWAI_PYTHON, choice[1]
     return AGENTS_PYTHON, script
 _BOOT_GRACE_SECONDS = 60.0
 _spawned_at: dict[str, float] = {}

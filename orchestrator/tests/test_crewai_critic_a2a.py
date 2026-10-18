@@ -69,3 +69,39 @@ def test_trace_id_travels_over_a2a_to_the_crewai_agent(service, monkeypatch):
     mon = out["response"]["monitoring"]
     assert mon["trace_id"] == ctx.trace_id          # the id the orchestrator generated arrived in the CrewAI process
     assert mon["parent_span_id"] and mon["parent_span_id"] != ctx.span_id  # a child span of the root, one per call
+
+
+@pytest.fixture(scope="module")
+def evidence_service():
+    port = 8127
+    env = {**os.environ, "CRITIC_STUB": "1", "EVIDENCE_PORT": str(port)}
+    proc = subprocess.Popen([str(VENV_PY), str(ROOT / "crewai_critic" / "evidence_service.py")], env=env,
+                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    try:
+        for _ in range(60):
+            try:
+                socket.create_connection(("127.0.0.1", port), timeout=0.5).close()
+                break
+            except OSError:
+                time.sleep(0.5)
+        else:
+            pytest.fail("CrewAI evidence service did not start")
+        yield port
+    finally:
+        proc.kill()
+
+
+def test_adk_client_gets_hypotheses_from_the_crewai_evidence_agent_over_a2a(evidence_service, monkeypatch):
+    import ports
+    import nexus_trace
+    monkeypatch.setitem(ports.A2A_PORTS, "evidence_agent", evidence_service)
+    from remote_call import call_remote_agent
+    ctx = nexus_trace.start_trace()
+    try:
+        findings = {"metrics_agent": {"finding_id": "f1", "evidence": [{"evidence_id": "ev-1"}]}}
+        out = asyncio.run(call_remote_agent("evidence_agent", "crewai evidence", json.dumps(findings)))
+    finally:
+        nexus_trace.set_current(None)
+    r = out["response"]
+    assert out["task_id"] and r["framework"] == "crewai"
+    assert r["hypotheses"][0]["hypothesis_id"] == "H1" and r["monitoring"]["trace_id"] == ctx.trace_id

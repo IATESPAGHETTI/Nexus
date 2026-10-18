@@ -345,6 +345,7 @@ async def run_investigation(
             "prompt_variant": os.environ.get("NEXUS_PROMPT_VARIANT", "default"),
             "guardrails": os.environ.get("NEXUS_GUARDRAILS", "1") != "0",
             "critic_framework": os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk"),
+            "evidence_framework": os.environ.get("NEXUS_EVIDENCE_FRAMEWORK", "adk"),
             "topology": "blackboard" if blackboard.enabled() else "hub",
             "triage": use_triage,
             "skip_critic": skip_critic,

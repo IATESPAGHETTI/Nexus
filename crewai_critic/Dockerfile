@@ -10,6 +10,7 @@ RUN pip install --no-cache-dir -r crewai-requirements.txt
 COPY nexus_models.py nexus_guard.py nexus_trace.py runtime_config.py ./
 COPY agents/common ./agents/common
 COPY agents/critic ./agents/critic
+COPY agents/evidence ./agents/evidence
 COPY crewai_critic ./crewai_critic
 
 ENV NEXUS_BIND_HOST=0.0.0.0 CRITIC_PORT=8106

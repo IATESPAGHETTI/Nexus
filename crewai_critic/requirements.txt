@@ -1,2 +1,3 @@
-crewai[a2a]==1.15.28
+crewai[a2a,google-genai]==1.15.28
 a2a-sdk[http-server]==0.3.26
+litellm==1.101.0

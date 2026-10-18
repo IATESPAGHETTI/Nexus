@@ -6,6 +6,14 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## CrewAI: Crew/Task, callbacks, second agent (2026-10-18) — implemented + tested; verified live on Gemini
+- The CrewAI Critic and a NEW CrewAI Evidence Agent now use real `Agent` + `Task` + `Crew` (`crewai_critic/crewai_common.py`), with `step_callback` /
+  `task_callback` writing into the same `AgentMonitor` as the ADK callbacks and token usage measured from `Crew.token_usage` (the earlier "0 tokens for the CrewAI
+  critic" gap is closed). Provider-aware (deepseek | gemini | groq). Evidence logic split into ADK-free `agents/evidence/evidence_core.py` (shared contract).
+- Select with `NEXUS_EVIDENCE_FRAMEWORK=crewai` / `NEXUS_CRITIC_FRAMEWORK=crewai` (backend launcher, experiment stack, compose `--profile crewai`); `run_config` records both.
+- Tests: crewai_critic 8, orchestrator ADK->CrewAI over A2A for critic AND evidence (stub, trace id propagated). Live: ADK specialists + CrewAI evidence + CrewAI critic -> DIAGNOSED in 20 s.
+- Limit: CrewAI `step_callback` only fires on tool steps; these agents use no tools.
+
 ## Report tables + download (2026-10-18) — implemented + tested; verified live on Gemini
 - `IncidentReport` now carries a Summary TABLE (14 rows: symptom, outcome, root cause, confidence, critic verdict, loops, agents, evidence count,
   calls/tokens, duration, topology/prompt/critic, recovery, approval), a Hypotheses table and an Agents table, plus `trace_id`, `duration_seconds`.

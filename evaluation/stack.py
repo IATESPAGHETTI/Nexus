@@ -27,7 +27,10 @@ AGENT_SCRIPTS = {
     "root_cause_critic": "agents/critic/a2a_service.py",
     "recovery_agent": "agents/recovery/a2a_service.py",
 }
-CREWAI_CRITIC_SCRIPT = "crewai_critic/a2a_service.py"
+CREWAI_SCRIPTS = {  # agent -> (env var that selects CrewAI, script)
+    "root_cause_critic": ("NEXUS_CRITIC_FRAMEWORK", "crewai_critic/a2a_service.py"),
+    "evidence_agent": ("NEXUS_EVIDENCE_FRAMEWORK", "crewai_critic/evidence_service.py"),
+}
 
 
 def _venv_python(name: str) -> Path:
@@ -63,11 +66,11 @@ class AgentStack:
             raise RuntimeError(f"agent ports already in use by something this run did not start: {busy}")
         self.log_dir.mkdir(parents=True, exist_ok=True)
         env = {**os.environ, "PYTHONIOENCODING": "utf-8", **extra_env}
-        crewai = env.get("NEXUS_CRITIC_FRAMEWORK", "adk").lower() == "crewai"
         for name, script in AGENT_SCRIPTS.items():
             python = _venv_python(".venv-agents")
-            if name == "root_cause_critic" and crewai:
-                python, script = _venv_python(".venv-crewai"), CREWAI_CRITIC_SCRIPT
+            choice = CREWAI_SCRIPTS.get(name)
+            if choice and env.get(choice[0], "adk").lower() == "crewai":
+                python, script = _venv_python(".venv-crewai"), choice[1]
             with open(self.log_dir / f"{name}.log", "w", encoding="utf-8") as log:
                 self.procs[name] = subprocess.Popen(
                     [str(python), str(REPO_ROOT / script)], cwd=str(REPO_ROOT), env=env,
