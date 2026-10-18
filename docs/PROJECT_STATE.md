@@ -6,6 +6,14 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Report tables + download (2026-10-18) — implemented + tested; verified live on Gemini
+- `IncidentReport` now carries a Summary TABLE (14 rows: symptom, outcome, root cause, confidence, critic verdict, loops, agents, evidence count,
+  calls/tokens, duration, topology/prompt/critic, recovery, approval), a Hypotheses table and an Agents table, plus `trace_id`, `duration_seconds`.
+- `GET /incidents/{id}/report?format=md|json` (backend), a Download button + tables in the dashboard's Audit panel.
+- Decision: agents keep validating their output against Pydantic models after parsing; ADK `output_schema` was NOT adopted because structured-output
+  support differs across DeepSeek/Gemini/Groq and would change behaviour for every provider.
+- Found: the CrewAI critic reports 0 tokens (CrewAI `usage_metrics` is empty), so CrewAI-arm cost is under-reported. To fix in the CrewAI step.
+
 ## Guard hardening + red-team suite (2026-10-18) — implemented + tested (0 tokens)
 - `nexus_guard.py` now normalises text before matching (NFKC, zero-width, look-alike letters, leetspeak, split letters, URL/HTML/hex/base64/rot13) and
   matches a categorised catalogue (override, leak, role, delimiter, tool_hijack, exfil) in English plus 8 other languages; abuse list extended

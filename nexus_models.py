@@ -112,6 +112,28 @@ class EvidenceRef(_Base):
     agent: str
 
 
+class HypothesisRow(_Base):
+    hypothesis_id: str
+    status: str
+    confidence: float = Field(ge=0.0, le=1.0)
+    statement: str
+    supporting: int = 0
+    contradicting: int = 0
+
+
+class AgentRow(_Base):
+    agent: str
+    model_calls: int = 0
+    tool_calls: int = 0
+    tokens: int = 0
+
+
+def _md_cell(value: Any) -> str:
+    """One Markdown table cell: no pipes or newlines, bounded length."""
+    text = str(value if value is not None else "").replace("|", "/").replace("\n", " ").strip()
+    return text if len(text) <= 160 else text[:157] + "..."
+
+
 class IncidentReport(_Base):
     """Final structured output of an investigation (course requirement 3)."""
 
@@ -131,6 +153,11 @@ class IncidentReport(_Base):
     run_config: dict[str, Any] = Field(default_factory=dict)
     total_tokens: Optional[int] = None
     llm_calls: Optional[int] = None
+    trace_id: Optional[str] = None
+    duration_seconds: Optional[float] = None
+    hypotheses: list[HypothesisRow] = Field(default_factory=list)
+    agents: list[AgentRow] = Field(default_factory=list)
+    summary_rows: list[list[str]] = Field(default_factory=list)  # [label, value] pairs: the report's summary TABLE
 
     def to_markdown(self) -> str:
         lines = [
@@ -140,9 +167,23 @@ class IncidentReport(_Base):
             f"**Reason:** {self.reason or 'n/a'}  ",
             f"**Re-evaluation loops used:** {self.loops_used}",
             "",
-            "## Root cause",
-            "",
         ]
+        if self.summary_rows:
+            lines += ["## Summary", "", "| Field | Value |", "|---|---|"]
+            lines += [f"| {_md_cell(k)} | {_md_cell(v)} |" for k, v in self.summary_rows]
+            lines.append("")
+        if self.hypotheses:
+            lines += ["## Hypotheses", "", "| ID | Status | Confidence | Evidence for / against | Statement |", "|---|---|---|---|---|"]
+            lines += [
+                f"| {h.hypothesis_id} | {h.status} | {h.confidence:.0%} | {h.supporting} / {h.contradicting} | {_md_cell(h.statement)} |"
+                for h in self.hypotheses
+            ]
+            lines.append("")
+        if self.agents:
+            lines += ["## Agents", "", "| Agent | Model calls | Tool calls | Tokens |", "|---|---|---|---|"]
+            lines += [f"| {a.agent} | {a.model_calls} | {a.tool_calls} | {a.tokens} |" for a in self.agents]
+            lines.append("")
+        lines += ["## Root cause", ""]
         if self.root_cause:
             conf = f" (confidence {self.root_cause_confidence:.0%})" if self.root_cause_confidence is not None else ""
             lines.append(f"{self.root_cause}{conf}")
@@ -196,7 +237,55 @@ def build_incident_report(incident: dict) -> IncidentReport:
             tool, agent = pool.get(eid, ("unknown", "unknown"))
             refs.append(EvidenceRef(evidence_id=eid, tool=tool, agent=agent))
     last = critiques[-1] if critiques else {}
+    findings = incident.get("agent_findings") or {}
+    by_agent = (incident.get("token_usage") or {}).get("by_agent") or {}
+    names = sorted(set(findings) | set(by_agent))
+    agent_rows = [
+        AgentRow(
+            agent=n,
+            model_calls=int((by_agent.get(n) or {}).get("llm_calls", 0) or 0),
+            tool_calls=len((findings.get(n) or {}).get("evidence", []) or []),
+            tokens=int((by_agent.get(n) or {}).get("total_tokens", 0) or 0),
+        )
+        for n in names
+    ]
+    hyp_rows = [
+        HypothesisRow(
+            hypothesis_id=str(h.get("hypothesis_id", "?")), status=str(h.get("status", "?")),
+            confidence=float(h.get("confidence", 0.0) or 0.0), statement=str(h.get("statement", "")),
+            supporting=len(h.get("supporting_evidence_ids") or []), contradicting=len(h.get("contradicting_evidence_ids") or []),
+        )
+        for h in hypotheses
+    ]
+    duration = None
+    try:
+        from datetime import datetime
+        a = datetime.fromisoformat(str(incident.get("created_at")).replace("Z", "+00:00"))
+        b = datetime.fromisoformat(str(incident.get("updated_at")).replace("Z", "+00:00"))
+        duration = round((b - a).total_seconds(), 1)
+    except (TypeError, ValueError):
+        pass
+    cfg = incident.get("run_config") or {}
+    outcome = incident.get("status") or decision.get("outcome", "UNKNOWN")
+    summary = [
+        ["Incident", incident.get("incident_id", "unknown")],
+        ["Symptom", incident.get("description", "")],
+        ["Outcome", outcome],
+        ["Root cause", winner.get("statement") if winner else "none supported (abstained)"],
+        ["Confidence", f"{winner.get('confidence', 0):.0%}" if winner else "n/a"],
+        ["Critic verdict", last.get("verdict", "n/a")],
+        ["Re-evaluation loops", f"{decision.get('loops_used', 0)} of {decision.get('max_loops', '?')}"],
+        ["Agents used", ", ".join(names) or "none"],
+        ["Evidence items", sum(len((f or {}).get("evidence", []) or []) for f in findings.values())],
+        ["Model calls / tokens", f"{usage.get('llm_calls', 'n/a')} / {usage.get('total_tokens', 'n/a')}"],
+        ["Duration", f"{duration} s" if duration is not None else "n/a"],
+        ["Topology / prompt / critic", f"{cfg.get('topology', 'hub')} / {cfg.get('prompt_variant', 'default')} / {cfg.get('critic_framework', 'adk')}"],
+        ["Recovery", ", ".join(a.get("action", "") for a in plan.get("actions", [])) or "none proposed"],
+        ["Approval", (incident.get("approval_state") or {}).get("decision") or "n/a"],
+    ]
     return IncidentReport(
+        trace_id=incident.get("trace_id"), duration_seconds=duration, hypotheses=hyp_rows, agents=agent_rows,
+        summary_rows=[[str(k), str(v)] for k, v in summary],
         incident_id=incident.get("incident_id", "unknown"),
         description=incident.get("description", ""),
         outcome=incident.get("status") or decision.get("outcome", "UNKNOWN"),

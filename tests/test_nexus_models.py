@@ -65,3 +65,30 @@ def test_report_for_abstained_incident_says_so():
     assert r.root_cause is None
     md = r.to_markdown()
     assert "abstained" in md and "No recovery plan" in md and "not recorded" in md
+
+
+def test_report_has_summary_hypotheses_and_agents_tables():
+    inc = _incident(created_at="2026-10-18T10:00:00Z", updated_at="2026-10-18T10:00:20Z", trace_id="t" * 32,
+                    token_usage={"total": {"llm_calls": 9, "total_tokens": 100},
+                                 "by_agent": {"database_agent": {"llm_calls": 2, "total_tokens": 40}}},
+                    run_config={"topology": "blackboard", "prompt_variant": "react", "critic_framework": "crewai"})
+    r = build_incident_report(inc)
+    md = r.to_markdown()
+    assert "## Summary" in md and "| Field | Value |" in md and "| Duration | 20.0 s |" in md
+    assert "| Topology / prompt / critic | blackboard / react / crewai |" in md
+    assert "## Hypotheses" in md and "| H1 | SUPPORTED | 80% |" in md and "| H2 | REJECTED |" in md
+    assert "## Agents" in md and "| database_agent | 2 | 1 | 40 |" in md
+    assert r.trace_id == "t" * 32 and r.summary_rows[0] == ["Incident", "INC-1"]
+
+
+def test_table_cells_cannot_break_the_markdown_table():
+    from nexus_models import _md_cell
+    assert "|" not in _md_cell("a | b\nc") and "\n" not in _md_cell("a | b\nc")
+    assert len(_md_cell("x" * 500)) <= 160
+
+
+def test_abstained_report_still_renders_a_summary_table():
+    r = build_incident_report(_incident(status="ABSTAINED", hypotheses=[], critic_results=[], recovery_plan=None,
+                                        approval_state=None, token_usage={}))
+    md = r.to_markdown()
+    assert "| Root cause | none supported (abstained) |" in md and "| Recovery | none proposed |" in md

@@ -34,7 +34,12 @@ export interface AuditIncident {
     recovery_actions: string[];
   };
   blackboard?: { entry_id: string; type: string; author: string; timestamp: string }[];
-  report?: { markdown?: string };
+  report?: {
+    markdown?: string;
+    summary_rows?: string[][];
+    hypotheses?: { hypothesis_id: string; status: string; confidence: number; statement: string; supporting: number; contradicting: number }[];
+  };
+  incident_id?: string;
 }
 
 export function AuditPanel({ incident }: { incident: AuditIncident }) {
@@ -121,9 +126,53 @@ export function AuditPanel({ incident }: { incident: AuditIncident }) {
         </>
       )}
 
+      {incident.report?.summary_rows && incident.report.summary_rows.length > 0 && (
+        <>
+          <div className={styles.sub}>Final report: summary</div>
+          <table className={styles.table}>
+            <tbody>
+              {incident.report.summary_rows.map(([k, v]) => (
+                <tr key={k}>
+                  <td className={styles.label}>{k}</td>
+                  <td>{v}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {incident.report?.hypotheses && incident.report.hypotheses.length > 0 && (
+        <>
+          <div className={styles.sub}>Hypotheses</div>
+          <table className={styles.table}>
+            <tbody>
+              {incident.report.hypotheses.map((h) => (
+                <tr key={h.hypothesis_id}>
+                  <td>{h.hypothesis_id}</td>
+                  <td>{h.status}</td>
+                  <td>{Math.round(h.confidence * 100)}%</td>
+                  <td>
+                    {h.supporting}/{h.contradicting} evidence
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </>
+      )}
+      {incident.report?.markdown && incident.incident_id && (
+        <div className={styles.row}>
+          <a className={styles.label} href={`/api/incidents/${incident.incident_id}/report?format=md`} download>
+            Download report (.md)
+          </a>
+          <a className={styles.label} href={`/api/incidents/${incident.incident_id}/report?format=json`} target="_blank" rel="noreferrer">
+            Open as JSON
+          </a>
+        </div>
+      )}
       {incident.report?.markdown && (
         <details className={styles.details}>
-          <summary>Final report (Markdown)</summary>
+          <summary>Final report (Markdown source)</summary>
           <pre className={styles.pre}>{incident.report.markdown}</pre>
         </details>
       )}

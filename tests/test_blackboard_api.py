@@ -46,3 +46,16 @@ def test_every_write_is_audited_as_a_board_entry_event_and_board_is_bounded():
     for _ in range(incident_store.MAX_BOARD_ENTRIES - 1):
         incident_store.append_board_entry(iid, "finding", "a", {})
     assert client.post(f"/incidents/{iid}/blackboard", json={"type": "finding", "author": "a", "content": {}}).status_code == 409
+
+
+def test_report_endpoint_serves_markdown_download_and_json():
+    iid = _incident()
+    assert client.get(f"/incidents/{iid}/report").status_code == 404            # not ready yet
+    client.post(f"/incidents/{iid}/state", json={"report": {"incident_id": iid, "outcome": "DIAGNOSED", "markdown": "# Incident report\n\n| a | b |\n|---|---|\n"}})
+    md = client.get(f"/incidents/{iid}/report", params={"format": "md"})
+    assert md.status_code == 200 and md.text.startswith("# Incident report")
+    assert md.headers["content-type"].startswith("text/markdown") and f"{iid}-report.md" in md.headers["content-disposition"]
+    js = client.get(f"/incidents/{iid}/report").json()
+    assert js["outcome"] == "DIAGNOSED" and "markdown" not in js
+    assert client.get(f"/incidents/{iid}/report", params={"format": "pdf"}).status_code == 422
+    assert client.get("/incidents/INC-nope/report").status_code == 404

@@ -7,6 +7,7 @@ from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import PlainTextResponse
 from pydantic import BaseModel, ConfigDict
 
 from . import demo, incident_store
@@ -177,6 +178,27 @@ def read_board(incident_id: str, type: str | None = None) -> dict:
     if entries is None:
         raise HTTPException(status_code=404, detail="incident not found")
     return {"entries": entries}
+
+
+@app.get("/incidents/{incident_id}/report")
+def get_incident_report(incident_id: str, format: str = "json"):
+    """The final structured report the orchestrator stored on the incident (nexus_models.IncidentReport).
+    `?format=md` returns the Markdown rendering as a download; `?format=json` (default) the structured fields."""
+    if format not in ("json", "md"):
+        raise HTTPException(status_code=422, detail="format must be 'json' or 'md'")
+    incident = incident_store.get_incident(incident_id)
+    if incident is None:
+        raise HTTPException(status_code=404, detail="incident not found")
+    report = incident.get("report")
+    if not report:
+        raise HTTPException(status_code=404, detail="report not ready yet (it is written when the investigation finishes)")
+    if format == "md":
+        return PlainTextResponse(
+            report.get("markdown", ""),
+            media_type="text/markdown; charset=utf-8",
+            headers={"Content-Disposition": f'attachment; filename="{incident_id}-report.md"'},
+        )
+    return {k: v for k, v in report.items() if k != "markdown"}
 
 
 @app.post("/incidents/{incident_id}/state")
