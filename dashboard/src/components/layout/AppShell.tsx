@@ -58,7 +58,7 @@ export function AppShell({ children }: PropsWithChildren) {
 
             <nav className={styles.navLinks}>
               <Link to="/" className={item(pathname === "/" && !hash)}>
-                Overview
+                Mission Control
               </Link>
               <Link to="/#recent-incidents" className={item(pathname === "/" && hash === "#recent-incidents")}>
                 Incidents

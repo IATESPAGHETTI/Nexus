@@ -152,7 +152,14 @@ async def _dispatch_diagnostic_agents(
     for name in agent_names:
         event_bridge.emit_event(incident_id, "AGENT_STARTED", source="incident_manager", target=name)
 
-    if blackboard.enabled():
+    if blackboard.pipeline():
+        result = await blackboard.pipeline_investigate(incident_id, question, agent_names, DIAGNOSTIC_AGENTS)
+        if result.get("handoff_from"):
+            event_bridge.emit_event(
+                incident_id, "HANDOFF", source=result["handoff_from"], target="downstream_specialists",
+                payload={"stage_two": [n for n in agent_names if n != result["handoff_from"]]},
+            )
+    elif blackboard.enabled():
         result = await blackboard.board_investigate(incident_id, question, agent_names, DIAGNOSTIC_AGENTS)
     else:
         result = await investigate_incident(question, agent_names=agent_names)
@@ -346,7 +353,7 @@ async def run_investigation(
             "guardrails": os.environ.get("NEXUS_GUARDRAILS", "1") != "0",
             "critic_framework": os.environ.get("NEXUS_CRITIC_FRAMEWORK", "adk"),
             "evidence_framework": os.environ.get("NEXUS_EVIDENCE_FRAMEWORK", "adk"),
-            "topology": "blackboard" if blackboard.enabled() else "hub",
+            "topology": blackboard.topology(),
             "triage": use_triage,
             "skip_critic": skip_critic,
             "llm": os.environ.get("NEXUS_LLM_PROVIDER", "deepseek"),

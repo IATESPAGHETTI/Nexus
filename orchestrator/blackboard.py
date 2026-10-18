@@ -33,8 +33,22 @@ from remote_call import call_remote_agent  # noqa: E402
 _TIMEOUT = 15.0
 
 
+TOPOLOGIES = ("hub", "blackboard", "pipeline")
+HANDOFF_MAX_CHARS = 900
+
+
+def topology() -> str:
+    name = os.environ.get("NEXUS_TOPOLOGY", "hub").strip().lower()
+    return name if name in TOPOLOGIES else "hub"
+
+
 def enabled() -> bool:
-    return os.environ.get("NEXUS_TOPOLOGY", "hub").strip().lower() == "blackboard"
+    """True when agents talk through the shared board (the blackboard AND the pipeline use it)."""
+    return topology() in ("blackboard", "pipeline")
+
+
+def pipeline() -> bool:
+    return topology() == "pipeline"
 
 
 def _post(incident_id: str, entry_type: str, author: str, content: dict) -> dict:
@@ -106,3 +120,45 @@ async def board_review(incident_id: str, name: str, description: str, hypothesis
     """Critic: controller posts which hypothesis to review; the critic reads it and all evidence from the board."""
     await asyncio.to_thread(_post, incident_id, "review_request", "incident_manager", {"hypothesis": hypothesis})
     return await _ask(incident_id, name, description, "review")
+
+
+# ------------------------------------------------------------------------------------------------ pipeline topology
+FIRST_STAGE = "metrics_agent"
+
+
+def build_handoff(upstream_agent: str, finding: dict) -> str:
+    """What the next stage is told about the upstream agent's result: its own written interpretation plus the plain
+    summary of which tools it used. This text comes from a MODEL's output, so it is treated as untrusted data on its way to
+    the next model: bounded, and screened/redacted with the same guard used for tool output."""
+    from nexus_guard import redact_text
+
+    interpretation = str(finding.get("interpretation") or "").strip()
+    observation = str(finding.get("observation") or "").strip()
+    text = f"{interpretation}\n[{observation}]" if observation else interpretation
+    text, _flags = redact_text(text[:HANDOFF_MAX_CHARS])
+    return (
+        f"\n\nHANDOFF from the {upstream_agent} (the first stage of this investigation). It reported: {text}\n"
+        f"Use this to focus where you look: investigate that endpoint, symptom and time window in YOUR area, and say whether your "
+        f"evidence agrees or disagrees. Report only what your own tools return."
+    )
+
+
+async def pipeline_investigate(incident_id: str, question: str, agent_names: list[str], descriptions: dict[str, str]) -> dict:
+    """Sequential hand-off over the shared board: the Metrics agent finds WHERE and WHEN first; the other selected
+    specialists then run in parallel, each told what the Metrics agent found. Same return shape as board_investigate.
+    With no Metrics agent in the selection (or only one agent) it degrades to the plain blackboard dispatch."""
+    if FIRST_STAGE not in agent_names or len(agent_names) < 2:
+        return await board_investigate(incident_id, question, agent_names, descriptions)
+    first = await board_investigate(incident_id, question, [FIRST_STAGE], descriptions)
+    rest = [n for n in agent_names if n != FIRST_STAGE]
+    upstream = first["findings"].get(FIRST_STAGE)
+    second_question = question + (build_handoff(FIRST_STAGE, upstream) if upstream else "")
+    second = await board_investigate(incident_id, second_question, rest, descriptions)
+    return {
+        "incident_description": question,
+        "findings": {**first["findings"], **second["findings"]},
+        "a2a": {**first["a2a"], **second["a2a"]},
+        "agents_dispatched": agent_names,
+        "agents_responded": [*first["agents_responded"], *second["agents_responded"]],
+        "handoff_from": FIRST_STAGE if upstream else None,
+    }
