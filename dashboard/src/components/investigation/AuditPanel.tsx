@@ -14,6 +14,7 @@ interface Span {
   duration_ms?: number | null;
   trace_id_seen_by_agent?: string | null;
   start_estimated?: boolean;
+  offset_ms?: number | null;
   ok?: boolean | null;
   prompt_variant?: string | null;
 }
@@ -77,6 +78,7 @@ export function AuditPanel({ incident }: { incident: AuditIncident }) {
   const spans = incident.trace?.spans ?? [];
   const agents = spans.filter((s) => s.kind === "agent");
   const board = incident.blackboard ?? [];
+  const rootMs = spans.find((s) => s.kind === "incident")?.duration_ms ?? 0;
   const cfg = Object.entries(incident.run_config ?? {});
   const hasAnything = incident.trace_id || spans.length || board.length || incident.lineage;
 
@@ -102,6 +104,31 @@ export function AuditPanel({ incident }: { incident: AuditIncident }) {
             </span>
           ))}
         </div>
+      )}
+
+      {agents.length > 0 && rootMs > 0 && (
+        <>
+          <div className={styles.sub}>Timeline (each bar = one agent's run, within the whole investigation)</div>
+          <div className={styles.timeline}>
+            {agents.map((s) =>
+              typeof s.offset_ms === "number" && typeof s.duration_ms === "number" ? (
+                <div key={s.span_id} className={styles.tlRow} title={`${s.name}: starts ${(s.offset_ms / 1000).toFixed(1)} s, runs ${(s.duration_ms / 1000).toFixed(1)} s`}>
+                  <span className={styles.tlLabel}>{s.name.replace("agent ", "")}</span>
+                  <span className={styles.tlTrack}>
+                    <span
+                      className={styles.tlBar}
+                      style={{
+                        left: `${Math.min(99, (s.offset_ms / rootMs) * 100)}%`,
+                        width: `${Math.max(1.5, Math.min(100 - (s.offset_ms / rootMs) * 100, (s.duration_ms / rootMs) * 100))}%`,
+                      }}
+                    />
+                  </span>
+                </div>
+              ) : null,
+            )}
+          </div>
+          <div className={styles.note}>Whole investigation: {(rootMs / 1000).toFixed(0)} s. Times are reconstructed and accurate to about a second.</div>
+        </>
       )}
 
       {agents.length > 0 && (

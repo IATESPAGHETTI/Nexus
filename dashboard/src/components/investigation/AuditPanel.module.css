@@ -83,3 +83,38 @@
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+
+.timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.tlRow {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--nx-ink-3);
+}
+.tlLabel {
+  width: 120px;
+  flex: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tlTrack {
+  position: relative;
+  flex: 1;
+  height: 10px;
+  border-radius: 5px;
+  background: var(--nx-neutral-bg);
+}
+.tlBar {
+  position: absolute;
+  top: 0;
+  height: 100%;
+  border-radius: 5px;
+  background: var(--nx-indigo, #d9392a);
+  opacity: 0.85;
+}

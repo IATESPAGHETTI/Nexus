@@ -14,6 +14,8 @@
   pipeline (before, every agent was placed at the time its trace event was written). Older incidents fall back to event time minus duration. Times are good to ~1 s at the root.
 - Dashboard: the incident ("Mission Control" detail) view was a black shell on a light site (user complaint: "it sucks, it's just black"); it now uses the light theme
   (`.nx-light` token overrides in `styles/global.css`, light header and body). Checked in the browser: no dark blocks, no white-on-white text.
+- Dashboard timeline (Audit panel): one bar per agent placed by its real clock. Live pipeline run (Gemini): Metrics 3.5-7.6 s, then Logs and Database both start at 7.9 s, then Evidence 14.2 s, Critic 16.7 s.
+- Note: the backend can only stop agents it started itself; after changing agent code, stop them by port (8101-8107) or they keep running the old code.
 
 ## Pipeline topology + board view (2026-10-18) — implemented + tested; verified live on Gemini (NOT yet measured against hub/blackboard)
 - `NEXUS_TOPOLOGY=pipeline` (third topology): the Metrics agent runs FIRST and alone (where/when); the other selected specialists then run in parallel over the shared
