@@ -6,6 +6,14 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## Guard hardening + red-team suite (2026-10-18) — implemented + tested (0 tokens)
+- `nexus_guard.py` now normalises text before matching (NFKC, zero-width, look-alike letters, leetspeak, split letters, URL/HTML/hex/base64/rot13) and
+  matches a categorised catalogue (override, leak, role, delimiter, tool_hijack, exfil) in English plus 8 other languages; abuse list extended
+  (plurals, romanised Hindi/Spanish/French/German).
+- `tests/redteam_corpus.py` + `tests/test_redteam.py` (209 checks) + `docs/REDTEAM_RESULTS.md`. HONEST NUMBERS: first pass on 30 unseen attacks = 21/30 (70%);
+  after generalising 30/30 but no longer independent; the 14 "hard" paraphrases are all missed by design; 0 false positives on 79 benign texts.
+- Still heuristic, not a proof of safety.
+
 ## Gemini free-tier test (2026-10-18) — one live investigation, NOT a benchmark
 - Purpose: avoid DeepSeek spend while developing. `NEXUS_LLM_PROVIDER=gemini` works end to end through ADK + LiteLLM (tool calling over MCP, A2A, critic).
 - `gemini-2.5-flash` (the old default) returns 404 for new accounts; the key can use `gemini-3.x` models. `gemini-3.8-flash` is a thinking model limited
