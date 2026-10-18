@@ -6,6 +6,12 @@
   ADK callbacks, input guardrails, prompt variants, tracing and repeated-run cost evaluation are partial or missing.
 - Next action: CrewAI Critic spike over A2A (req. 6/7), then input guardrails + prompt variants.
 
+## A2A interoperability limit found (2026-10-18)
+- ADK 2.9.1 agents publish A2A 1.0 style agent cards (`supportedInterfaces`). The CrewAI environment's `a2a-sdk` 0.3.26 client cannot parse them (`url` field required), so
+  a CrewAI agent cannot call an ADK agent directly with the versions CrewAI 1.15.28 pins. ADK -> CrewAI works (ADK's client reads both card formats; verified live and in tests).
+- Consequence: the planned "CrewAI critic asks an ADK specialist directly" (peer-to-peer) was NOT built. Workarounds (a second legacy card on the ADK side, or a hand-written
+  JSON-RPC client) were rejected: they would re-implement the protocol instead of using the SDK. A2A is bidirectional only in the sense that both frameworks serve and are called over A2A.
+
 ## OpenTelemetry export + trace timing + light incident view (2026-10-18)
 - `nexus_otlp.py`: converts the stored span tree to OTLP/HTTP JSON (one service per agent + `nexus-orchestrator`, real trace id, parent links, error status) and POSTs it to
   `NEXUS_OTLP_ENDPOINT` after each investigation (`TRACE_EXPORTED` event, fail-soft). Plain JSON over HTTP, so no OpenTelemetry SDK (its pins conflict with the ADK stack).
