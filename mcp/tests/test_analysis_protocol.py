@@ -24,7 +24,7 @@ async def test_second_server_lists_exactly_its_three_tools():
         async with ClientSession(read, write) as session:
             await session.initialize()
             tools = await session.list_tools()
-    assert {t.name for t in tools.tools} == {"search_runbook", "evaluate_expression", "detect_latency_step"}
+    assert {t.name for t in tools.tools} == {"search_runbook", "evaluate_expression", "detect_latency_step", "web_search"}
     for tool in tools.tools:
         assert tool.input_schema.get("properties"), tool.name          # schemas derived from the type hints
 

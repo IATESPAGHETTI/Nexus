@@ -34,6 +34,7 @@ from prompt_variants import apply_variant
 from finding import build_finding, make_evidence_item, now_iso
 from mcp_connection import (
     ANALYSIS_INSTRUCTION,
+    WEB_SEARCH_INSTRUCTION,
     analysis_server_connection_params,
     analysis_tools_for,
     mcp_server_connection_params,
@@ -110,10 +111,21 @@ class DiagnosticAgent:
             name=self.agent_name,
             description=self.description,
             model=LiteLlm(model=litellm_model_name(), **model_kwargs),
-            instruction=self.instruction + (ANALYSIS_INSTRUCTION if extra else ""),
+            instruction=self.instruction + self._extra_tool_instruction(extra),
             tools=toolsets,
             **self._callbacks(monitor),
         )
+
+    @staticmethod
+    def _extra_tool_instruction(extra: list[str]) -> str:
+        """Describe only the extra tools this agent actually has (the two switches are independent)."""
+        if not extra:
+            return ""
+        if any(tool != "web_search" for tool in extra):
+            text = ANALYSIS_INSTRUCTION
+        else:
+            text = "\n\nEXTRA TOOLS from a second tool server (use them only when they help):"
+        return text + (WEB_SEARCH_INSTRUCTION if "web_search" in extra else "")
 
     async def investigate(self, question: str) -> dict:
         monitor = AgentMonitor(self.agent_name)

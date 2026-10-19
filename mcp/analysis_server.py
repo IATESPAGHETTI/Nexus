@@ -1,4 +1,4 @@
-"""NEXUS MCP analysis server: a runbook parser, a safe calculator and a statistics tool (course requirement 2).
+"""NEXUS MCP analysis server: a runbook parser, a safe calculator, a statistics tool and an opt-in web search (course requirement 2).
 
     .venv-mcp/Scripts/python mcp/analysis_server.py
 
@@ -15,6 +15,7 @@ mcp_server = MCPServer(name="nexus-analysis")
 mcp_server.tool(structured_output=True)(analysis_tools.search_runbook)
 mcp_server.tool(structured_output=True)(analysis_tools.evaluate_expression)
 mcp_server.tool(structured_output=True)(analysis_tools.detect_latency_step)
+mcp_server.tool(structured_output=True)(analysis_tools.web_search)    # refuses unless NEXUS_ENABLE_WEB_SEARCH=1
 
 
 if __name__ == "__main__":
