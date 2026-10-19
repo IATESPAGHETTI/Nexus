@@ -34,7 +34,7 @@
 ## OpenTelemetry export + trace timing + light incident view (2026-10-18)
 - `nexus_otlp.py`: converts the stored span tree to OTLP/HTTP JSON (one service per agent + `nexus-orchestrator`, real trace id, parent links, error status) and POSTs it to
   `NEXUS_OTLP_ENDPOINT` after each investigation (`TRACE_EXPORTED` event, fail-soft). Plain JSON over HTTP, so no OpenTelemetry SDK (its pins conflict with the ADK stack).
-  Tested against a throwaway local collector (`tests/test_nexus_otlp.py`, 6 tests). NOT yet verified in real Jaeger: Docker Desktop's engine was off when tried.
+  Tested against a throwaway local collector (`tests/test_nexus_otlp.py`, 6 tests). Verified in real Jaeger 1.62 (2026-10-19): a stored 21-span investigation trace (hub_crewai_both) was exported and read back from Jaeger's API under its own trace id, 5 services. `NEXUS_OTLP_ENDPOINT` is the FULL URL, e.g. `http://jaeger:4318/v1/traces`.
 - Trace timing: agents now record their own wall-clock start/end (`started_unix`/`finished_unix` in `AgentMonitor.summary`), so spans are placed correctly even in the
   pipeline (before, every agent was placed at the time its trace event was written). Older incidents fall back to event time minus duration. Times are good to ~1 s at the root.
 - Dashboard: the incident ("Mission Control" detail) view was a black shell on a light site (user complaint: "it sucks, it's just black"); it now uses the light theme
@@ -574,4 +574,4 @@ _Older history: see `docs/archive/PROJECT_STATE_HISTORY.md`._
 
 ## 2026-10-19 - Held-out matrix complete
 - 126/126 valid runs (Gemini `gemini-3.5-flash-lite`, 3 owner keys used in turn, same model). Baseline 94%; multi-agent arms 62-75% (not separable at n=18); hub/no-critic/blackboard/pipeline named a fault on the healthy control in 1 of 2 runs. Details: `docs/EVALUATION_RESULTS_HOLDOUT.md`. Raw results are gitignored under `evaluation/results/`.
-- Still not verified: real Jaeger receiving OTLP; Azure scripts and Approve on the VM.
+- Jaeger verified afterwards (see OTLP note above). Still not verified: Azure scripts and Approve on the VM. Full test run 2026-10-19: root 316, evaluation 47, mcp 57, crewai 8 pass; agents (89) and orchestrator (76) pass except tests needing live agents/model quota, which pass when the agents are started (test_a2a 6/6, test_incident_manager 2/2); the live end-to-end test was not rerun (Gemini daily quota used).
