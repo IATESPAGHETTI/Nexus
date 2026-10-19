@@ -24,6 +24,18 @@ Single-agent baseline 87%; hub (shipped system) 80%; hub without critic 100%; bl
 **Run B: held-out, Gemini `gemini-3.5-flash-lite`, 126 valid runs** (7 arms, 9 scenarios never used for tuning, 2 repeats; `EVALUATION_RESULTS_HOLDOUT.md`).
 Single-agent baseline 94%; multi-agent arms 62-75%. Hardest cases for multi-agent: a reworded database slowdown and a deployment-plus-database double fault. Four multi-agent arms named a fault on the healthy shop in 1 of 2 runs.
 
+**Pooled view across both models (simple mean of the two runs; 18 runs per arm per model, only arms that were run on both).**
+Different models and different scenarios, so this is a summary of the two experiments, not a third experiment.
+
+| Arm | DeepSeek | Gemini | Mean accuracy | Mean tokens/run | Mean time/run |
+|---|---|---|---|---|---|
+| Single-agent baseline | 87% | 94% | **90.5%** | 2,696 | 1.9 s |
+| Hub (shipped system) | 80% | 75% | **77.5%** | 27,019 | 14.9 s |
+| Hub without critic | 100% | 69% | **84.5%** | 19,967 | 9.9 s |
+| Blackboard | 67% | 62% | **64.5%** | 29,931 | 16.3 s |
+
+The pattern is the same on both models: the baseline is the most accurate and about a tenth of the cost. The no-critic arm swings from first to near last between the two models, which shows how much of these differences is noise.
+
 **Reading the results honestly.**
 1. On these simulated faults one evidence snapshot is enough, so one model call matches or beats the multi-agent system on accuracy, at about a sixth of the tokens. This held on two different models.
 2. Differences among the multi-agent variants (topology, critic, extra tools, CrewAI) are within noise at 18 runs per arm. We do not claim any of them is better.
@@ -34,11 +46,11 @@ Single-agent baseline 94%; multi-agent arms 62-75%. Hardest cases for multi-agen
 See `REQUIREMENTS_EVIDENCE.md` for the table (where each of the 11 requirements lives, how to check it, and its limits). Test counts on 2026-10-19: 316 backend/root, 47 evaluation, 57 MCP, 8 CrewAI, plus agent and orchestrator suites (live-agent tests pass when the agents run).
 
 ## 5. Limitations
-- A CrewAI agent cannot call an ADK agent: the pinned a2a-sdk (0.3) cannot parse ADK 2.9's agent cards. Interoperability is ADK -> CrewAI.
+- CrewAI -> ADK needed a fix: ADK 2.9 serves A2A 1.0 agent cards that CrewAI's pinned a2a-sdk 0.3 rejects. ADK's services now add the three 0.3 fields to the card (`agents/common/legacy_card.py`), and CrewAI's own delegation function completed a task against an ADK agent. What was NOT shown: a CrewAI agent choosing to delegate on its own, because the small Gemini model wrote the agent name instead of the URL in CrewAI's structured field (a model quirk, not the protocol).
 - The guardrail is a heuristic: 21/30 first-pass detection on unseen attacks; 14 hard paraphrases are missed by design. The real protection is structural.
 - Faults are simulated and easy to read; real production would be harder. Recovery success was not measured.
 - Small samples, one provider per run, free-tier limits; held-out scenarios were run once.
 - Azure scripts (redeploy, backup, health check) and Approve-to-recovery on the cloud site are written but not yet rehearsed on the VM.
 
 ## 6. Future work
-Peer-to-peer CrewAI -> ADK calls once the SDKs align; harder, real-incident datasets; tuning the false-alarm rate on a healthy shop; measuring recovery success.
+A CrewAI agent that delegates to ADK on its own with a stronger model; harder, real-incident datasets; tuning the false-alarm rate on a healthy shop; measuring recovery success.

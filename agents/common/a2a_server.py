@@ -32,6 +32,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from nexus_trace import TraceContextMiddleware  # noqa: E402
 from board_io import parse_board_message, run_on_board  # noqa: E402
+from legacy_card import LegacyCardMiddleware  # noqa: E402
 
 
 class DiagnosticAgentExecutor(AgentExecutor):
@@ -78,5 +79,6 @@ def build_a2a_app(diagnostic_agent, host: str, port: int) -> Starlette:
         port=port,
         agent_executor_factory=lambda runner: DiagnosticAgentExecutor(diagnostic_agent),
     )
+    app.add_middleware(LegacyCardMiddleware)  # a card that an A2A 0.3 client (CrewAI) can also read
     app.add_middleware(TraceContextMiddleware)  # reads the orchestrator's W3C traceparent header
     return app
