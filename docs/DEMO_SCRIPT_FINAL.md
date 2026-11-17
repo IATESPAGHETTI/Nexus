@@ -12,7 +12,7 @@
 ## The demo (what to click, what to say)
 1. **Mission Control (home).** "NEXUS investigates a production failure with a team of agents. The shop here is a simulation, so it is safe to break." Show the agents ON switch and the status strip (real state only).
 2. **Open the simulated shop** (new tab). Add an item, check out. "This is the customer side."
-3. **Inject -> Slow database.** "Only the customer symptom is sent to the agents, never the cause." While it runs, point at the live flow map: specialists in parallel, then Evidence, then the Critic. Say: "Agents talk over real A2A; one is built with CrewAI and the others with Google ADK."
+3. **Use the shop after injecting** (click Orders / checkout a few times in the shop tab: the agents can only see slowness that customers actually cause; with no traffic NEXUS correctly abstains). **Inject -> Slow database.** "Only the customer symptom is sent to the agents, never the cause." While it runs, point at the live flow map: specialists in parallel, then Evidence, then the Critic. Say: "Agents talk over real A2A; one is built with CrewAI and the others with Google ADK."
 4. **Incident page.** Walk the seven questions (what happened, what NEXUS decided, why). Then scroll to **Audit trail & provenance**:
    - the trace id and "same trace" next to every agent (one id crossed every process),
    - the **timeline** (who ran when),
