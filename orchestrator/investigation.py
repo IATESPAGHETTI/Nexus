@@ -48,6 +48,7 @@ import blackboard  # noqa: E402
 from nexus_guard import screen_user_text  # noqa: E402
 import nexus_otlp  # noqa: E402
 import nexus_trace  # noqa: E402
+from runtime_config import resolve_runtime_config  # noqa: E402
 from nexus_models import build_incident_report  # noqa: E402
 
 MAX_REEVALUATION_LOOPS = int(os.environ.get("MAX_REEVALUATION_LOOPS", "3"))
@@ -362,7 +363,8 @@ async def run_investigation(
             "topology": blackboard.topology(),
             "triage": use_triage,
             "skip_critic": skip_critic,
-            "llm": os.environ.get("NEXUS_LLM_PROVIDER", "deepseek"),
+            "llm": resolve_runtime_config()[0],
+            "model": resolve_runtime_config()[1],   # the model actually used (default included), so a trace viewer can label and price each call
         },
     )
 

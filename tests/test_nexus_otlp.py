@@ -151,3 +151,34 @@ def test_no_keys_means_no_auth_header(monkeypatch):
     for name in ("NEXUS_OTLP_HEADERS", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
         monkeypatch.delenv(name, raising=False)
     assert otlp.headers("https://cloud.langfuse.com/api/public/otel/v1/traces") == {}
+
+
+def _attr_map(span_attrs):
+    return {a["key"]: next(iter(a["value"].values())) for a in span_attrs}
+
+
+def test_model_calls_become_generations_with_usage_and_an_estimated_cost(monkeypatch):
+    monkeypatch.delenv("NEXUS_PRICE_IN_PER_M", raising=False)
+    monkeypatch.delenv("NEXUS_PRICE_OUT_PER_M", raising=False)
+    incident = dict(INCIDENT, run_config={"llm": "gemini", "model": "gemini-3.5-flash-lite"})
+    payload = otlp.to_otlp(nt.build_trace(incident, EVENTS), incident)
+    spans = [s for r in payload["resourceSpans"] for sc in r["scopeSpans"] for s in sc["spans"]]
+    models = [s for s in spans if _attr_map(s["attributes"]).get("langfuse.observation.type") == "generation"]
+    assert len(models) == 1                                         # only the one model call; tools and agents are plain spans
+    a = _attr_map(models[0]["attributes"])
+    assert a["gen_ai.request.model"] == "gemini-3.5-flash-lite"
+    usage, cost = json.loads(a["langfuse.observation.usage_details"]), json.loads(a["langfuse.observation.cost_details"])
+    assert usage == {"input": 50, "output": 0, "total": 50}
+    assert cost["input"] == round(50 / 1e6 * 0.30, 8) and cost["total"] == cost["input"] + cost["output"]
+    assert "not billed" in a["nexus.cost_basis"]
+
+
+def test_prices_can_be_overridden_and_unknown_model_falls_back(monkeypatch):
+    monkeypatch.setenv("NEXUS_PRICE_IN_PER_M", "1.0")
+    monkeypatch.setenv("NEXUS_PRICE_OUT_PER_M", "2.0")
+    monkeypatch.delenv("NEXUS_LLM_MODEL", raising=False)
+    span = {"kind": "model_call_finished", "prompt_tokens": 1_000_000, "completion_tokens": 500_000}
+    a = _attr_map(otlp.generation_attrs(span, otlp.model_name({"run_config": {"llm": "deepseek"}})))
+    assert json.loads(a["langfuse.observation.cost_details"])["total"] == 2.0     # 1M x $1 + 0.5M x $2
+    assert a["gen_ai.request.model"] == "deepseek"
+    assert otlp.generation_attrs({"kind": "tool_call_finished"}, "m") == []

@@ -16,6 +16,7 @@ the millisecond only for durations. Export is best-effort and never changes an i
 from __future__ import annotations
 
 import base64
+import json
 import os
 from typing import Any
 from urllib.parse import urlparse
@@ -36,7 +37,43 @@ def _attr(key: str, value: Any) -> dict | None:
     return {"key": key, "value": {"stringValue": str(value)[:300]}}
 
 
-def _attrs(span: dict, incident_id: str) -> list[dict]:
+# Estimated list prices in USD per million tokens. Same assumption as evaluation/matrix.py (a deepseek-flash peak price): the
+# provider is NOT billing this. On a free tier the real cost is $0. Override with NEXUS_PRICE_IN_PER_M / NEXUS_PRICE_OUT_PER_M.
+DEFAULT_PRICE_IN_PER_M = 0.30
+DEFAULT_PRICE_OUT_PER_M = 1.20
+
+
+def _price(name: str, default: float) -> float:
+    try:
+        return float(os.environ.get(name, default))
+    except ValueError:
+        return default
+
+
+def model_name(incident: dict) -> str:
+    """The model that produced the run: stored in run_config, else the current setting, else the provider name."""
+    cfg = incident.get("run_config") or {}
+    return str(cfg.get("model") or os.environ.get("NEXUS_LLM_MODEL") or cfg.get("llm") or "unknown")
+
+
+def generation_attrs(span: dict, model: str) -> list[dict]:
+    """Langfuse 'generation' fields for one model call: model, token usage and an ESTIMATED cost (see DEFAULT_PRICE_*)."""
+    if span.get("kind") != "model_call_finished":
+        return []
+    n_in, n_out = int(span.get("prompt_tokens") or 0), int(span.get("completion_tokens") or 0)
+    price_in, price_out = _price("NEXUS_PRICE_IN_PER_M", DEFAULT_PRICE_IN_PER_M), _price("NEXUS_PRICE_OUT_PER_M", DEFAULT_PRICE_OUT_PER_M)
+    cost_in, cost_out = n_in / 1e6 * price_in, n_out / 1e6 * price_out
+    usage = {"input": n_in, "output": n_out, "total": n_in + n_out}
+    cost = {"input": round(cost_in, 8), "output": round(cost_out, 8), "total": round(cost_in + cost_out, 8)}
+    pairs = [
+        ("langfuse.observation.type", "generation"), ("gen_ai.request.model", model),
+        ("langfuse.observation.usage_details", json.dumps(usage)), ("langfuse.observation.cost_details", json.dumps(cost)),
+        ("nexus.cost_basis", f"estimated at ${price_in}/M input and ${price_out}/M output tokens (list-price assumption, not billed)"),
+    ]
+    return [a for a in (_attr(k, v) for k, v in pairs) if a]
+
+
+def _attrs(span: dict, incident_id: str, model: str = "unknown") -> list[dict]:
     pairs = [
         ("nexus.incident_id", incident_id), ("nexus.kind", span.get("kind")), ("nexus.time_estimated", True),
         ("nexus.a2a_task_id", span.get("a2a_task_id")), ("nexus.a2a_context_id", span.get("a2a_context_id")),
@@ -44,7 +81,7 @@ def _attrs(span: dict, incident_id: str) -> list[dict]:
         ("nexus.completion_tokens", span.get("completion_tokens")), ("nexus.tool_ok", span.get("ok")),
         ("nexus.error_type", span.get("error_type")), ("nexus.trace_id_seen_by_agent", span.get("trace_id_seen_by_agent")),
     ]
-    return [a for a in (_attr(k, v) for k, v in pairs) if a]
+    return [a for a in (_attr(k, v) for k, v in pairs) if a] + generation_attrs(span, model)
 
 
 def _service_of(span: dict, parents: dict[str, dict]) -> str:
@@ -67,6 +104,7 @@ def to_otlp(trace: dict, incident: dict) -> dict:
     if len(trace_id) != 32 or not spans:
         return {"resourceSpans": []}
     incident_id = str(incident.get("incident_id", ""))
+    model = model_name(incident)
     by_id = {s["span_id"]: s for s in spans}
     root = spans[0]
     root_start = root.get("start_unix_s")
@@ -92,7 +130,7 @@ def to_otlp(trace: dict, incident: dict) -> dict:
             "parentSpanId": s.get("parent_span_id") if s.get("parent_span_id") in by_id else "",
             "name": s.get("name", s.get("kind", "span")), "kind": SPAN_KIND.get(s.get("kind"), 1),
             "startTimeUnixNano": str(int(start * 1_000_000)), "endTimeUnixNano": str(int((start + duration) * 1_000_000)),
-            "attributes": _attrs(s, incident_id), "status": {"code": 2 if failed else 1},
+            "attributes": _attrs(s, incident_id, model), "status": {"code": 2 if failed else 1},
         }
         per_service.setdefault(_service_of(s, by_id), []).append(otlp_span)
 
