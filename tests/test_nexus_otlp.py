@@ -102,3 +102,52 @@ def test_export_posts_the_payload_to_a_collector(monkeypatch):
         server.shutdown()
     assert out["exported"] is True and out["status"] == 200 and out["span_count"] >= 5
     assert received["path"] == "/v1/traces" and received["body"]["resourceSpans"]
+
+
+def test_custom_headers_reach_the_collector(monkeypatch):
+    received = {}
+
+    class Handler(http.server.BaseHTTPRequestHandler):
+        def do_POST(self):
+            received["auth"] = self.headers.get("Authorization")
+            received["extra"] = self.headers.get("X-Team")
+            self.rfile.read(int(self.headers["Content-Length"]))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *a):
+            pass
+
+    server = http.server.HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.setenv("NEXUS_OTLP_ENDPOINT", f"http://127.0.0.1:{server.server_port}/v1/traces")
+    monkeypatch.setenv("NEXUS_OTLP_HEADERS", "Authorization=Bearer test-token, X-Team=nexus")
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+    try:
+        out = otlp.export(nt.build_trace(INCIDENT, EVENTS), INCIDENT)
+    finally:
+        server.shutdown()
+    assert out["exported"] is True
+    assert received == {"auth": "Bearer test-token", "extra": "nexus"}   # the explicit header, not the Langfuse keys
+
+
+def test_langfuse_keys_are_only_sent_to_langfuse_hosts(monkeypatch):
+    import base64
+
+    monkeypatch.delenv("NEXUS_OTLP_HEADERS", raising=False)
+    monkeypatch.setenv("LANGFUSE_PUBLIC_KEY", "pk-lf-test")
+    monkeypatch.setenv("LANGFUSE_SECRET_KEY", "sk-lf-test")
+    lf = otlp.headers("https://cloud.langfuse.com/api/public/otel/v1/traces")
+    assert lf["Authorization"] == "Basic " + base64.b64encode(b"pk-lf-test:sk-lf-test").decode()
+    assert lf["x-langfuse-ingestion-version"] == "4"
+    assert "Authorization" in otlp.headers("https://us.cloud.langfuse.com/api/public/otel/v1/traces")
+    for other in ("http://jaeger:4318/v1/traces", "http://localhost:4318/v1/traces", "https://langfuse.com.evil.example/v1/traces",
+                  "https://evil-langfuse.com/v1/traces"):
+        assert otlp.headers(other) == {}, other
+
+
+def test_no_keys_means_no_auth_header(monkeypatch):
+    for name in ("NEXUS_OTLP_HEADERS", "LANGFUSE_PUBLIC_KEY", "LANGFUSE_SECRET_KEY"):
+        monkeypatch.delenv(name, raising=False)
+    assert otlp.headers("https://cloud.langfuse.com/api/public/otel/v1/traces") == {}

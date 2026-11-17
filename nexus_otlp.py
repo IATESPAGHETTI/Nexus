@@ -15,8 +15,10 @@ the millisecond only for durations. Export is best-effort and never changes an i
 
 from __future__ import annotations
 
+import base64
 import os
 from typing import Any
+from urllib.parse import urlparse
 
 SPAN_KIND = {"incident": 1, "a2a_call": 3, "agent": 2}   # INTERNAL, CLIENT, SERVER (everything else INTERNAL)
 SCOPE = {"name": "nexus", "version": "1.0"}
@@ -105,6 +107,26 @@ def endpoint() -> str:
     return os.environ.get("NEXUS_OTLP_ENDPOINT", "").strip()
 
 
+def headers(url: str | None = None) -> dict[str, str]:
+    """Extra HTTP headers for the export (values are secrets: never log them).
+
+    NEXUS_OTLP_HEADERS uses the OpenTelemetry convention `Key=Value,Key2=Value2`. For Langfuse Cloud, setting
+    LANGFUSE_PUBLIC_KEY and LANGFUSE_SECRET_KEY is enough: the Basic auth header is built from them, and ONLY when the
+    endpoint's host is a langfuse.com host, so the keys are never sent to any other collector.
+    """
+    out: dict[str, str] = {}
+    for item in os.environ.get("NEXUS_OTLP_HEADERS", "").split(","):
+        key, sep, value = item.partition("=")
+        if sep and key.strip():
+            out[key.strip()] = value.strip()
+    host = urlparse(url if url is not None else endpoint()).hostname or ""
+    public, secret = os.environ.get("LANGFUSE_PUBLIC_KEY", "").strip(), os.environ.get("LANGFUSE_SECRET_KEY", "").strip()
+    if public and secret and (host == "langfuse.com" or host.endswith(".langfuse.com")) and "Authorization" not in out:
+        out["Authorization"] = "Basic " + base64.b64encode(f"{public}:{secret}".encode()).decode()
+        out.setdefault("x-langfuse-ingestion-version", "4")
+    return out
+
+
 def export(trace: dict, incident: dict, timeout: float = 5.0) -> dict:
     """POST the trace to NEXUS_OTLP_ENDPOINT. Returns {"exported": bool, ...}; never raises."""
     url = endpoint()
@@ -116,7 +138,7 @@ def export(trace: dict, incident: dict, timeout: float = 5.0) -> dict:
     try:
         import httpx
 
-        response = httpx.post(url, json=payload, timeout=timeout)
+        response = httpx.post(url, json=payload, headers=headers(url), timeout=timeout)
         ok = response.status_code < 300
         return {"exported": ok, "status": response.status_code, "span_count": sum(len(s["spans"]) for r in payload["resourceSpans"] for s in r["scopeSpans"])}
     except Exception as exc:  # noqa: BLE001 -- tracing must never break an investigation
