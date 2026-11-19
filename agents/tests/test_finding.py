@@ -3,6 +3,8 @@
 import sys
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "common"))
 
 from finding import build_finding, make_evidence_item  # noqa: E402
@@ -85,7 +87,19 @@ def test_build_finding_schema_shape():
     assert set(finding["window"].keys()) == {"start", "end"}
 
 
-def test_mcp_server_receives_the_settings_it_needs(monkeypatch):
+@pytest.fixture()
+def mcp_interpreter(monkeypatch):
+    """These tests only BUILD the tool connection (nothing is started), but building it checks that the tool server's
+    interpreter exists. CI has no .venv-mcp, so point the check at the running interpreter."""
+    import sys
+    from pathlib import Path
+
+    import mcp_connection
+    monkeypatch.setattr(mcp_connection, "_MCP_PYTHON_OVERRIDE", sys.executable)
+    monkeypatch.setattr(mcp_connection, "MCP_SERVER_PYTHON", Path(sys.executable))
+
+
+def test_mcp_server_receives_the_settings_it_needs(monkeypatch, mcp_interpreter):
     """The MCP SDK gives the tool server a minimal environment, so required settings are passed explicitly."""
     import mcp_connection
     monkeypatch.setenv("PRODUCTION_BASE_URL", "http://production:8001")
@@ -95,7 +109,7 @@ def test_mcp_server_receives_the_settings_it_needs(monkeypatch):
     assert params.env == {"PRODUCTION_BASE_URL": "http://production:8001"}
 
 
-def test_analysis_tools_are_off_by_default_and_assigned_when_enabled(monkeypatch):
+def test_analysis_tools_are_off_by_default_and_assigned_when_enabled(monkeypatch, mcp_interpreter):
     import mcp_connection as mc
     monkeypatch.delenv("NEXUS_ENABLE_ANALYSIS_TOOLS", raising=False)
     assert mc.analysis_tools_for("metrics_agent") == []
@@ -107,7 +121,7 @@ def test_analysis_tools_are_off_by_default_and_assigned_when_enabled(monkeypatch
     assert p.args[0].endswith("analysis_server.py")
 
 
-def test_diagnostic_agent_gets_a_second_toolset_only_when_enabled(monkeypatch):
+def test_diagnostic_agent_gets_a_second_toolset_only_when_enabled(monkeypatch, mcp_interpreter):
     import diagnostic_agent as da
     agent = da.DiagnosticAgent("metrics_agent", "x", ["get_metrics"])
     monkeypatch.delenv("NEXUS_ENABLE_ANALYSIS_TOOLS", raising=False)
